@@ -27,7 +27,7 @@ Thumbs.db
 .env.*.local
 
 # Firebase keys or service files
-firebaseConfig.ts
+
 
 # Keystores and credentials
 *.jks
