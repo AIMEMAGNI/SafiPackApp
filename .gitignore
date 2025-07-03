@@ -1,0 +1,43 @@
+# Node modules
+node_modules/
+
+# Expo files
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.expo
+
+# Build and debug files
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.tsbuildinfo
+*.orig.*
+*.log
+
+# macOS
+.DS_Store
+
+# Windows thumbnail cache
+Thumbs.db
+
+# Environment files
+.env
+.env.*.local
+
+# Firebase keys or service files
+firebaseConfig.ts
+
+# Keystores and credentials
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# VSCode settings (optional)
+.vscode/
