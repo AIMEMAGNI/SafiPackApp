@@ -1,5 +1,7 @@
 import {
     createUserWithEmailAndPassword,
+    EmailAuthProvider,
+    linkWithCredential,
     sendPasswordResetEmail,
     signInAnonymously,
     signInWithEmailAndPassword,
@@ -54,8 +56,18 @@ export default function AuthScreen() {
         if (!validateInputs()) return;
         setLoading(true);
         try {
-            await createUserWithEmailAndPassword(auth, email, password);
-            Alert.alert('Signup Success', 'Your account has been created!');
+            // Check if user is anonymous and wants to convert
+            const currentUser = auth.currentUser;
+            if (currentUser && currentUser.isAnonymous) {
+                // Convert anonymous user to full account
+                const credential = EmailAuthProvider.credential(email, password);
+                await linkWithCredential(currentUser, credential);
+                Alert.alert('Account Created', 'Your guest account has been converted to a full account!');
+            } else {
+                // Create new account normally
+                await createUserWithEmailAndPassword(auth, email, password);
+                Alert.alert('Signup Success', 'Your account has been created!');
+            }
         } catch (err: any) {
             Alert.alert('Signup Error', err.message || 'Signup failed.');
         } finally {
