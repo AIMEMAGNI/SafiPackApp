@@ -1,6 +1,8 @@
 # Node modules
 node_modules/
 
+firebaseConfig.ts
+
 # Expo files
 .expo/
 .expo-shared/
