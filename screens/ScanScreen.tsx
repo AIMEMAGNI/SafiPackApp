@@ -20,6 +20,13 @@ export default function ScanScreen() {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [result, setResult] = useState<any | null>(null);
     const [loading, setLoading] = useState(false);
+    const [preferred, setPreferred] = useState<string | null>(null);
+
+    const resetScreen = () => {
+        setImageUri(null);
+        setResult(null);
+        setPreferred(null);
+    };
 
     const copyImageToLocalCache = async (uri: string): Promise<string> => {
         const filename = uri.split('/').pop() || `photo_${Date.now()}.jpg`;
@@ -35,35 +42,65 @@ export default function ScanScreen() {
 
     const compressImage = async (uri: string) => {
         try {
-            const info = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-                Image.getSize(
-                    uri,
-                    (width, height) => resolve({ width, height }),
-                    reject
-                );
-            });
-
-            const isSquare = Math.abs(info.width - info.height) < 30;
-            const needsResize = info.width > 1000 || info.height > 1000;
-
-            if (!isSquare || needsResize) {
-                const ops = [];
-                if (needsResize) ops.push({ resize: { width: 800 } });
-                if (!isSquare) {
-                    const size = Math.min(info.width, info.height);
-                    ops.push({ crop: { originX: 0, originY: 0, width: size, height: size } });
-                }
-
-                const manipulated = await manipulateAsync(uri, ops, {
-                    compress: 0.6,
-                    format: SaveFormat.JPEG,
-                });
-                return manipulated.uri;
+            const info = await FileSystem.getInfoAsync(uri);
+            if (!info.exists) {
+                console.error('Image file does not exist');
+                return uri;
             }
 
-            return uri;
+            // Always process the image to ensure compatibility
+            const operations = [];
+
+            try {
+                // Get image dimensions safely
+                const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Timeout getting image size')), 5000);
+                    Image.getSize(
+                        uri,
+                        (width, height) => {
+                            clearTimeout(timeout);
+                            resolve({ width, height });
+                        },
+                        (error) => {
+                            clearTimeout(timeout);
+                            reject(error);
+                        }
+                    );
+                });
+
+                const { width, height } = dimensions;
+                const maxSize = 1000;
+
+                // Resize if image is too large
+                if (width > maxSize || height > maxSize) {
+                    const ratio = Math.min(maxSize / width, maxSize / height);
+                    operations.push({
+                        resize: {
+                            width: Math.round(width * ratio),
+                            height: Math.round(height * ratio),
+                        },
+                    });
+                }
+            } catch (dimensionError) {
+                console.warn('Could not get image dimensions, applying default resize:', dimensionError);
+                // Apply a safe default resize
+                operations.push({
+                    resize: {
+                        width: 800,
+                    },
+                });
+            }
+
+            // Always manipulate the image to ensure proper format and compression
+            const manipulated = await manipulateAsync(uri, operations, {
+                compress: 0.8,
+                format: SaveFormat.JPEG,
+            });
+
+            return manipulated.uri;
         } catch (error) {
-            console.error('Image manipulation failed:', error);
+            console.error('Image compression failed:', error);
+            // Return original URI if compression fails
             return uri;
         }
     };
@@ -73,10 +110,11 @@ export default function ScanScreen() {
         const blob = await response.blob();
         const imageRef = storageRef(storage, `scans/${userId}/${Date.now()}.jpg`);
         await uploadBytes(imageRef, blob);
-        return await getDownloadURL(imageRef);
+        const downloadUrl = await getDownloadURL(imageRef);
+        return downloadUrl;
     };
 
-    const saveScanResults = async (localImageUri: string, scanData: any) => {
+    const saveScanResults = async (localImageUri: string, scanData: any, preferredChoice: string | null = null) => {
         try {
             const userId = auth.currentUser?.uid;
             if (!userId) throw new Error('User not authenticated');
@@ -91,7 +129,7 @@ export default function ScanScreen() {
                     const altRef = storageRef(storage, `scans/${userId}/alternative_${Date.now()}.jpg`);
                     await uploadBytes(altRef, altBlob);
                     alternativeImageUrl = await getDownloadURL(altRef);
-                } catch (err) {
+                } catch {
                     console.warn('Alternative image upload failed. Using original URL.');
                     alternativeImageUrl = scanData.greener_alternative.image_url;
                 }
@@ -108,6 +146,7 @@ export default function ScanScreen() {
                     category: scanData.prediction?.main_category_en || 'Unknown',
                     ecoScore: scanData.prediction?.environmental_score_grade || 'N/A',
                     packaging,
+                    brands_en: scanData.prediction?.brands_en || 'N/A',
                 },
                 greenerAlternative: scanData.greener_alternative
                     ? {
@@ -117,6 +156,7 @@ export default function ScanScreen() {
                         imageUrl: alternativeImageUrl,
                     }
                     : null,
+                preferred: preferredChoice ?? null,
                 timestamp: serverTimestamp(),
             };
 
@@ -137,16 +177,26 @@ export default function ScanScreen() {
         }
 
         const photo = await ImagePicker.launchCameraAsync({
-            quality: 0.7,
+            quality: 0.8,
             base64: false,
             allowsEditing: false,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            aspect: undefined,
+            exif: false,
         });
 
         if (!photo.canceled && photo.assets?.length > 0) {
-            const localPath = await copyImageToLocalCache(photo.assets[0].uri);
-            const compressedUri = await compressImage(localPath);
-            setImageUri(compressedUri);
-            setResult(null);
+            try {
+                const localPath = await copyImageToLocalCache(photo.assets[0].uri);
+                const compressedUri = await compressImage(localPath);
+                setImageUri(compressedUri);
+                setResult(null);
+                setPreferred(null);
+                console.log('Camera image processed successfully:', compressedUri);
+            } catch (error) {
+                console.error('Error processing camera image:', error);
+                Alert.alert('Error', 'Failed to process the image. Please try again.');
+            }
         }
     };
 
@@ -158,17 +208,26 @@ export default function ScanScreen() {
         }
 
         const picked = await ImagePicker.launchImageLibraryAsync({
-            quality: 0.7,
+            quality: 0.8,
             base64: false,
             allowsEditing: false,
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            aspect: undefined,
+            exif: false,
         });
 
         if (!picked.canceled && picked.assets?.length > 0) {
-            const localPath = await copyImageToLocalCache(picked.assets[0].uri);
-            const compressedUri = await compressImage(localPath);
-            setImageUri(compressedUri);
-            setResult(null);
+            try {
+                const localPath = await copyImageToLocalCache(picked.assets[0].uri);
+                const compressedUri = await compressImage(localPath);
+                setImageUri(compressedUri);
+                setResult(null);
+                setPreferred(null);
+                console.log('Gallery image processed successfully:', compressedUri);
+            } catch (error) {
+                console.error('Error processing gallery image:', error);
+                Alert.alert('Error', 'Failed to process the image. Please try again.');
+            }
         }
     };
 
@@ -207,22 +266,33 @@ export default function ScanScreen() {
 
         setLoading(true);
         setResult(null);
+        setPreferred(null);
 
         try {
-            const formData = new FormData();
-            const filename = imageUri.split('/').pop() || 'photo.jpg';
-            const match = /\.(\w+)$/.exec(filename);
-            const type = match ? `image/${match[1]}` : 'image/jpeg';
+            // Always compress/process the image first to ensure compatibility
+            const processedUri = await compressImage(imageUri);
 
+            // Check if processed file exists
+            const fileInfo = await FileSystem.getInfoAsync(processedUri);
+            if (!fileInfo.exists) {
+                throw new Error('Processed image file not found');
+            }
+
+            const formData = new FormData();
+            const filename = `image_${Date.now()}.jpg`; // Use consistent naming
+
+            // Always use JPEG format for maximum compatibility
             formData.append('file', {
-                uri: imageUri,
+                uri: processedUri,
                 name: filename,
-                type: type,
+                type: 'image/jpeg',
             } as any);
+
+            console.log('Uploading image:', { uri: processedUri, filename, size: fileInfo.size });
 
             const apiUrl = 'https://aimemagni-SafiPack.hf.space/predict';
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            const timeoutId = setTimeout(() => controller.abort(), 45000); // Increased timeout
 
             const apiResponse = await fetch(apiUrl, {
                 method: 'POST',
@@ -235,12 +305,16 @@ export default function ScanScreen() {
 
             clearTimeout(timeoutId);
 
+            console.log('API Response Status:', apiResponse.status);
+
             if (!apiResponse.ok) {
                 const errorText = await apiResponse.text();
+                console.error('API Error Response:', errorText);
                 throw new Error(`API Error: ${apiResponse.status} - ${errorText}`);
             }
 
             const data = await apiResponse.json();
+            console.log('API Response Data:', data);
 
             if (!data || !data.prediction) {
                 throw new Error('No prediction data returned.');
@@ -252,8 +326,6 @@ export default function ScanScreen() {
             }
 
             setResult(data);
-            await saveScanResults(imageUri, data);
-
         } catch (error: any) {
             console.error('Scan error:', error);
             if (error.name === 'AbortError') {
@@ -261,6 +333,31 @@ export default function ScanScreen() {
             } else {
                 Alert.alert('Scan Failed', error.message || 'Something went wrong. Please try again.');
             }
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handlePreferenceSelection = async (choice: string) => {
+        try {
+            setLoading(true);
+            await saveScanResults(imageUri!, result, choice);
+            setPreferred(choice);
+            Alert.alert(
+                "Thank you!",
+                `You selected the ${choice === 'product' ? 'Scanned Product' : 'Greener Alternative'} as preferred.`,
+                [
+                    {
+                        text: "OK",
+                        onPress: () => {
+                            // Reset screen after user acknowledges
+                            setTimeout(resetScreen, 500);
+                        }
+                    }
+                ]
+            );
+        } catch {
+            Alert.alert("Error", "Could not save your choice.");
         } finally {
             setLoading(false);
         }
@@ -276,11 +373,7 @@ export default function ScanScreen() {
             </View>
 
             {imageUri && (
-                <Image
-                    source={{ uri: imageUri }}
-                    style={styles.image}
-                    resizeMode="cover"
-                />
+                <Image source={{ uri: imageUri }} style={styles.image} resizeMode="cover" />
             )}
 
             <View style={styles.buttonRow}>
@@ -290,12 +383,7 @@ export default function ScanScreen() {
             </View>
 
             <View style={{ height: 20 }} />
-
-            <Button
-                title="Scan Image"
-                onPress={uploadAndScan}
-                disabled={!imageUri || loading}
-            />
+            <Button title="Scan Image" onPress={uploadAndScan} disabled={!imageUri || loading} />
 
             {loading && (
                 <View style={styles.loadingContainer}>
@@ -304,68 +392,60 @@ export default function ScanScreen() {
                 </View>
             )}
 
-            {result && (
-                <View style={styles.resultContainer}>
-                    <Text style={styles.resultLabel}>🧾 Product Info</Text>
-                    <Text style={styles.resultText}>
-                        Category: {result.prediction?.main_category_en ?? 'Unknown'}
+            {result && !preferred && (
+                <View style={{ marginTop: 30 }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' }}>
+                        Which one would you choose?
                     </Text>
 
-                    <View style={styles.ecoScoreRow}>
-                        <Text style={styles.resultText}>Eco-Score:</Text>
-                        <View style={[styles.ecoScoreBadge, {
-                            backgroundColor: getEcoScoreColor(result.prediction?.environmental_score_grade),
-                        }]}>
-                            <Text style={styles.ecoScoreText}>
-                                {(result.prediction?.environmental_score_grade ?? 'N/A').toUpperCase()}
-                            </Text>
-                        </View>
+                    <View style={[styles.preferenceCard, { borderColor: '#2196F3' }]}>
+                        <Text style={styles.preferenceTitle}>Scanned Product</Text>
+                        {imageUri && (
+                            <Image source={{ uri: imageUri }} style={styles.altImage} />
+                        )}
+                        <Text style={styles.resultText}>Brand: {result.prediction?.brands_en ?? 'N/A'}</Text>
+                        <Text style={[styles.resultText, { color: getEcoScoreColor(result.prediction?.environmental_score_grade) }]}>
+                            Eco-Score: {result.prediction?.environmental_score_grade ?? 'N/A'}
+                        </Text>
+                        <Button
+                            title="✅ I prefer this product"
+                            color="#2196F3"
+                            onPress={() => handlePreferenceSelection('product')}
+                        />
                     </View>
 
-                    {Array.isArray(result.prediction?.packaging_en) && result.prediction.packaging_en.length > 0 && (
-                        <Text style={styles.resultText}>
-                            Packaging: {result.prediction.packaging_en.join(', ')}
-                        </Text>
-                    )}
-
-                    <View style={styles.divider} />
-
-                    <Text style={styles.resultLabel}>🌱 Better Alternative</Text>
-                    {result.greener_alternative ? (
-                        <>
-                            <Text style={styles.resultText}>
-                                Brand: {result.greener_alternative.brands_en ?? 'N/A'}
+                    {result.greener_alternative && (
+                        <View style={[styles.preferenceCard, { borderColor: '#4CAF50' }]}>
+                            <Text style={styles.preferenceTitle}>Greener Alternative</Text>
+                            <Text style={styles.resultText}>Brand: {result.greener_alternative?.brands_en ?? 'N/A'}</Text>
+                            <Text style={[styles.resultText, { color: getEcoScoreColor(result.greener_alternative?.environmental_score_grade) }]}>
+                                Eco-Score: {result.greener_alternative?.environmental_score_grade ?? 'N/A'}
                             </Text>
-
-                            <View style={styles.ecoScoreRow}>
-                                <Text style={styles.resultText}>Eco-Score:</Text>
-                                <View style={[styles.ecoScoreBadge, {
-                                    backgroundColor: getEcoScoreColor(result.greener_alternative.environmental_score_grade),
-                                }]}>
-                                    <Text style={styles.ecoScoreText}>
-                                        {(result.greener_alternative.environmental_score_grade ?? 'N/A').toUpperCase()}
-                                    </Text>
-                                </View>
-                            </View>
-
-                            {typeof result.greener_alternative.packaging_en === 'string' && (
-                                <Text style={styles.resultText}>
-                                    Packaging: {result.greener_alternative.packaging_en}
-                                </Text>
-                            )}
-
                             {result.greener_alternative.image_url && (
-                                <Image
-                                    source={{ uri: result.greener_alternative.image_url }}
-                                    style={styles.altImage}
-                                    resizeMode="cover"
-                                />
+                                <Image source={{ uri: result.greener_alternative.image_url }} style={styles.altImage} />
                             )}
-                        </>
-                    ) : (
-                        <Text style={styles.resultText}>No better alternative found.</Text>
+                            <Button
+                                title="✅ I prefer this alternative"
+                                color="#4CAF50"
+                                onPress={() => handlePreferenceSelection('alternative')}
+                            />
+                        </View>
                     )}
                 </View>
+            )}
+
+            {preferred && (
+                <Text style={{
+                    marginTop: 20,
+                    padding: 10,
+                    backgroundColor: '#E8F5E9',
+                    borderRadius: 8,
+                    color: '#388E3C',
+                    textAlign: 'center',
+                    fontWeight: 'bold'
+                }}>
+                    ✅ You selected the {preferred === 'product' ? 'Scanned Product' : 'Greener Alternative'} as your preference.
+                </Text>
             )}
         </ScrollView>
     );
@@ -382,11 +462,19 @@ const styles = StyleSheet.create({
     buttonRow: { flexDirection: 'row', marginBottom: 10 },
     loadingContainer: { alignItems: 'center', marginTop: 20 },
     loadingText: { marginTop: 10, fontSize: 16, fontWeight: '500' },
-    resultContainer: { marginTop: 30, padding: 15, backgroundColor: '#f0f0f0', borderRadius: 10, width: '100%' },
-    resultLabel: { fontWeight: 'bold', marginBottom: 8, fontSize: 16 },
     resultText: { fontSize: 14, marginBottom: 6, color: '#333' },
-    ecoScoreRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-    ecoScoreBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, marginLeft: 8 },
-    ecoScoreText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
-    divider: { height: 1, backgroundColor: '#ccc', marginVertical: 15 },
+    preferenceCard: {
+        borderWidth: 1.5,
+        borderRadius: 12,
+        padding: 15,
+        marginBottom: 20,
+        backgroundColor: '#F9F9F9',
+        alignItems: 'center',
+    },
+    preferenceTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
 });

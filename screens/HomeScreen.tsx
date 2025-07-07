@@ -47,7 +47,8 @@ const HomeScreen: React.FC = () => {
             const entries = Object.values(data);
             setScanCount(entries.length);
 
-            const alternatives = entries.filter((item: any) => item.greenerAlternative != null);
+            const alternatives = entries.filter((item: any) => item.preferred === 'alternative');
+
             setAlternativeCount(alternatives.length);
 
             setScans(entries);
@@ -60,7 +61,6 @@ const HomeScreen: React.FC = () => {
     const filteredScans = selectedCategory
         ? scans.filter(scan => {
             const packagingList = scan?.prediction?.packaging || scan?.prediction?.packaging_en || [];
-            // packaging can be array or string, normalize to array lowercase
             const packagingArray = Array.isArray(packagingList)
                 ? packagingList.map((p: string) => p.toLowerCase())
                 : [packagingList.toLowerCase()];
@@ -107,7 +107,7 @@ const HomeScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Packaging Categories as buttons */}
+                {/* Packaging Categories */}
                 <Text style={styles.sectionTitle}>Packaging Categories</Text>
                 <View style={styles.packagingCategoryRow}>
                     {PACKAGING_CATEGORIES.map((category) => (
@@ -133,7 +133,7 @@ const HomeScreen: React.FC = () => {
                     ))}
                 </View>
 
-                {/* Filtered scan results list */}
+                {/* Filtered Scans */}
                 {selectedCategory && (
                     <>
                         <Text style={[styles.sectionTitle, { marginTop: 20 }]}>
@@ -166,27 +166,53 @@ const HomeScreen: React.FC = () => {
                     </>
                 )}
 
-                {/* Recent Uploads (Static for now) */}
-                <Text style={styles.sectionTitle}>Recent Uploads</Text>
-                <View style={styles.uploadRow}>
-                    <View style={[styles.uploadCard, { backgroundColor: '#2E7D32CC' }]}>
-                        <Image
-                            source={require('../assets/lime.jpg')}
-                            style={styles.uploadImage}
-                        />
-                        <View style={styles.dateOverlay}>
-                            <Text style={styles.uploadDate}>15 Sep</Text>
+                {/* EcoScore Grades Section */}
+                <Text style={styles.sectionTitle}>EcoScore Grades Explained</Text>
+                <View style={styles.ecoScoreInfoContainer}>
+                    {[
+                        {
+                            grade: 'A+',
+                            description: 'Exceptional environmental performance. Made from sustainable materials with minimal emissions and high recyclability.',
+                            color: '#1B5E20',
+                        },
+                        {
+                            grade: 'A',
+                            description: 'Excellent sustainability. Low environmental impact throughout production and disposal.',
+                            color: '#2E7D32',
+                        },
+                        {
+                            grade: 'B',
+                            description: 'Good performance. Slight environmental impact, often using partially recycled or renewable materials.',
+                            color: '#558B2F',
+                        },
+                        {
+                            grade: 'C',
+                            description: 'Moderate impact. Mix of sustainable and non-sustainable materials. Room for improvement.',
+                            color: '#F9A825',
+                        },
+                        {
+                            grade: 'D',
+                            description: 'Significant impact. Often made from single-use or hard-to-recycle materials.',
+                            color: '#EF6C00',
+                        },
+                        {
+                            grade: 'E',
+                            description: 'High environmental burden. Poor recyclability and non-renewable resource use.',
+                            color: '#D84315',
+                        },
+                        {
+                            grade: 'F',
+                            description: 'Severe environmental damage. Non-sustainable production and major pollution risk.',
+                            color: '#B71C1C',
+                        },
+                    ].map((item) => (
+                        <View key={item.grade} style={styles.ecoScoreCard}>
+                            <View style={[styles.gradeCircle, { backgroundColor: item.color }]}>
+                                <Text style={styles.gradeText}>{item.grade}</Text>
+                            </View>
+                            <Text style={styles.gradeDescription}>{item.description}</Text>
                         </View>
-                    </View>
-                    <View style={[styles.uploadCard, { backgroundColor: '#1565C0CC' }]}>
-                        <Image
-                            source={require('../assets/orange.png')}
-                            style={styles.uploadImage}
-                        />
-                        <View style={styles.dateOverlay}>
-                            <Text style={styles.uploadDate}>02 Sep</Text>
-                        </View>
-                    </View>
+                    ))}
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -296,38 +322,47 @@ const styles = StyleSheet.create({
         color: '#333',
         marginBottom: 4,
     },
-    uploadRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 10,
-    },
-    uploadCard: {
-        flex: 0.48,
-        height: 100,
-        borderRadius: 16,
-        overflow: 'hidden',
-        position: 'relative',
-    },
-    uploadImage: {
-        ...StyleSheet.absoluteFillObject,
-        resizeMode: 'cover',
-        opacity: 0.5,
-    },
-    dateOverlay: {
-        position: 'absolute',
-        bottom: 8,
-        left: 8,
-    },
-    uploadDate: {
-        color: 'white',
-        fontWeight: 'bold',
-    },
     noScansText: {
         marginTop: 10,
         fontSize: 14,
         fontStyle: 'italic',
         color: 'gray',
         textAlign: 'center',
+    },
+    ecoScoreInfoContainer: {
+        marginTop: 10,
+        gap: 12,
+    },
+    ecoScoreCard: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        backgroundColor: '#f9f9f9',
+        padding: 12,
+        borderRadius: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 1,
+    },
+    gradeCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    gradeText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    gradeDescription: {
+        flex: 1,
+        fontSize: 14,
+        color: '#333',
+        lineHeight: 18,
     },
 });
 
