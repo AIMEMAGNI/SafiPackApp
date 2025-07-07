@@ -47,60 +47,13 @@ export default function ScanScreen() {
                 console.error('Image file does not exist');
                 return uri;
             }
-
-            // Always process the image to ensure compatibility
-            const operations = [];
-
-            try {
-                // Get image dimensions safely
-                const dimensions = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-                    const timeout = setTimeout(() => reject(new Error('Timeout getting image size')), 5000);
-                    Image.getSize(
-                        uri,
-                        (width, height) => {
-                            clearTimeout(timeout);
-                            resolve({ width, height });
-                        },
-                        (error) => {
-                            clearTimeout(timeout);
-                            reject(error);
-                        }
-                    );
-                });
-
-                const { width, height } = dimensions;
-                const maxSize = 1000;
-
-                // Resize if image is too large
-                if (width > maxSize || height > maxSize) {
-                    const ratio = Math.min(maxSize / width, maxSize / height);
-                    operations.push({
-                        resize: {
-                            width: Math.round(width * ratio),
-                            height: Math.round(height * ratio),
-                        },
-                    });
-                }
-            } catch (dimensionError) {
-                console.warn('Could not get image dimensions, applying default resize:', dimensionError);
-                // Apply a safe default resize
-                operations.push({
-                    resize: {
-                        width: 800,
-                    },
-                });
-            }
-
-            // Always manipulate the image to ensure proper format and compression
-            const manipulated = await manipulateAsync(uri, operations, {
+            const manipulated = await manipulateAsync(uri, [], {
                 compress: 0.8,
                 format: SaveFormat.JPEG,
             });
-
             return manipulated.uri;
         } catch (error) {
             console.error('Image compression failed:', error);
-            // Return original URI if compression fails
             return uri;
         }
     };
@@ -233,7 +186,7 @@ export default function ScanScreen() {
 
     const getEcoScoreColor = (score: string) => {
         const grade = score?.toLowerCase();
-        if (grade === 'a-plus' || grade === 'a' || grade === 'b') return '#4CAF50';
+        if (grade === 'a-plus' || grade === 'a' || grade === 'b') return '#2C5B3F';
         if (grade === 'c' || grade === 'd') return '#FF9800';
         if (grade === 'e' || grade === 'f') return '#F44336';
         return '#9E9E9E';
@@ -269,30 +222,25 @@ export default function ScanScreen() {
         setPreferred(null);
 
         try {
-            // Always compress/process the image first to ensure compatibility
             const processedUri = await compressImage(imageUri);
 
-            // Check if processed file exists
             const fileInfo = await FileSystem.getInfoAsync(processedUri);
             if (!fileInfo.exists) {
                 throw new Error('Processed image file not found');
             }
 
             const formData = new FormData();
-            const filename = `image_${Date.now()}.jpg`; // Use consistent naming
+            const filename = `image_${Date.now()}.jpg`;
 
-            // Always use JPEG format for maximum compatibility
             formData.append('file', {
                 uri: processedUri,
                 name: filename,
                 type: 'image/jpeg',
             } as any);
 
-            console.log('Uploading image:', { uri: processedUri, filename, size: fileInfo.size });
-
             const apiUrl = 'https://aimemagni-SafiPack.hf.space/predict';
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 45000); // Increased timeout
+            const timeoutId = setTimeout(() => controller.abort(), 45000);
 
             const apiResponse = await fetch(apiUrl, {
                 method: 'POST',
@@ -305,16 +253,12 @@ export default function ScanScreen() {
 
             clearTimeout(timeoutId);
 
-            console.log('API Response Status:', apiResponse.status);
-
             if (!apiResponse.ok) {
                 const errorText = await apiResponse.text();
-                console.error('API Error Response:', errorText);
                 throw new Error(`API Error: ${apiResponse.status} - ${errorText}`);
             }
 
             const data = await apiResponse.json();
-            console.log('API Response Data:', data);
 
             if (!data || !data.prediction) {
                 throw new Error('No prediction data returned.');
@@ -327,7 +271,6 @@ export default function ScanScreen() {
 
             setResult(data);
         } catch (error: any) {
-            console.error('Scan error:', error);
             if (error.name === 'AbortError') {
                 Alert.alert('Timeout', 'The scan took too long. Please try again.');
             } else {
@@ -350,7 +293,6 @@ export default function ScanScreen() {
                     {
                         text: "OK",
                         onPress: () => {
-                            // Reset screen after user acknowledges
                             setTimeout(resetScreen, 500);
                         }
                     }
@@ -364,7 +306,7 @@ export default function ScanScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
             <Text style={styles.title}>Scan Product</Text>
 
             <View style={styles.instructionsContainer}>
@@ -377,24 +319,28 @@ export default function ScanScreen() {
             )}
 
             <View style={styles.buttonRow}>
-                <Button title="Take Photo" onPress={takePhoto} />
-                <View style={{ width: 10 }} />
-                <Button title="Pick from Gallery" onPress={pickImage} />
+                <View style={styles.buttonWrapper}>
+                    <Button title="Take Photo" onPress={takePhoto} color="#2C5B3F" />
+                </View>
+                <View style={{ width: 16 }} />
+                <View style={styles.buttonWrapper}>
+                    <Button title="Pick from Gallery" onPress={pickImage} color="#2C5B3F" />
+                </View>
             </View>
 
             <View style={{ height: 20 }} />
-            <Button title="Scan Image" onPress={uploadAndScan} disabled={!imageUri || loading} />
+            <Button title="Scan Image" onPress={uploadAndScan} disabled={!imageUri || loading} color="#2C5B3F" />
 
             {loading && (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#000" />
+                    <ActivityIndicator size="large" color="#2C5B3F" />
                     <Text style={styles.loadingText}>Analyzing...</Text>
                 </View>
             )}
 
             {result && !preferred && (
-                <View style={{ marginTop: 30 }}>
-                    <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' }}>
+                <View style={styles.preferenceSection}>
+                    <Text style={styles.preferenceQuestion}>
                         Which one would you choose?
                     </Text>
 
@@ -435,15 +381,7 @@ export default function ScanScreen() {
             )}
 
             {preferred && (
-                <Text style={{
-                    marginTop: 20,
-                    padding: 10,
-                    backgroundColor: '#E8F5E9',
-                    borderRadius: 8,
-                    color: '#388E3C',
-                    textAlign: 'center',
-                    fontWeight: 'bold'
-                }}>
+                <Text style={styles.selectedText}>
                     ✅ You selected the {preferred === 'product' ? 'Scanned Product' : 'Greener Alternative'} as your preference.
                 </Text>
             )}
@@ -452,29 +390,133 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flexGrow: 1, padding: 20, alignItems: 'center', backgroundColor: 'white' },
-    title: { fontSize: 24, marginBottom: 20, fontWeight: 'bold' },
-    instructionsContainer: { backgroundColor: '#e8f5e8', padding: 12, borderRadius: 8, marginBottom: 20, width: '100%' },
-    instructionsText: { fontSize: 14, fontWeight: '500', textAlign: 'center', color: '#2d5a2d' },
-    instructionsSubText: { fontSize: 12, textAlign: 'center', color: '#5a7a5a', marginTop: 4 },
-    image: { width: 250, height: 250, borderRadius: 12, marginBottom: 20 },
-    altImage: { width: 150, height: 150, marginTop: 10, borderRadius: 10 },
-    buttonRow: { flexDirection: 'row', marginBottom: 10 },
-    loadingContainer: { alignItems: 'center', marginTop: 20 },
-    loadingText: { marginTop: 10, fontSize: 16, fontWeight: '500' },
-    resultText: { fontSize: 14, marginBottom: 6, color: '#333' },
-    preferenceCard: {
-        borderWidth: 1.5,
-        borderRadius: 12,
-        padding: 15,
+    container: {
+        flexGrow: 1,
+        padding: 20,
+        alignItems: 'center',
+        backgroundColor: 'white',
+    },
+    title: {
+        fontSize: 24,
         marginBottom: 20,
-        backgroundColor: '#F9F9F9',
+        fontWeight: 'bold',
+        color: '#2C5B3F',
+        textAlign: 'center',
+    },
+    instructionsContainer: {
+        backgroundColor: '#E6F1EC',
+        padding: 14,
+        borderRadius: 10,
+        marginBottom: 20,
+        width: '100%',
+        borderLeftWidth: 6,
+        borderLeftColor: '#2C5B3F',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    instructionsText: {
+        fontSize: 15,
+        fontWeight: '600',
+        textAlign: 'center',
+        color: '#2C5B3F',
+    },
+    instructionsSubText: {
+        fontSize: 13,
+        textAlign: 'center',
+        color: '#4B755C',
+        marginTop: 4,
+    },
+    image: {
+        width: 260,
+        height: 260,
+        borderRadius: 14,
+        marginBottom: 20,
+        backgroundColor: '#F5F5F5',
+    },
+    altImage: {
+        width: 160,
+        height: 160,
+        marginTop: 12,
+        marginBottom: 12,
+        borderRadius: 12,
+        backgroundColor: '#F5F5F5',
+    },
+    buttonRow: {
+        flexDirection: 'row',
+        marginBottom: 12,
+        justifyContent: 'center',
+        width: '100%',
+    },
+    buttonWrapper: {
+        flex: 1,
+    },
+    loadingContainer: {
+        alignItems: 'center',
+        marginTop: 24,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#2C5B3F',
+    },
+    resultText: {
+        fontSize: 15,
+        marginBottom: 8,
+        color: '#333',
+        textAlign: 'center',
+    },
+    preferenceSection: {
+        marginTop: 30,
+        width: '100%',
         alignItems: 'center',
     },
+    preferenceCard: {
+        borderWidth: 1.5,
+        borderRadius: 14,
+        padding: 18,
+        marginBottom: 24,
+        backgroundColor: '#FAFAFA',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
+        width: '90%',
+    },
     preferenceTitle: {
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: 'bold',
-        marginBottom: 10,
+        marginBottom: 14,
         textAlign: 'center',
+        color: '#2C5B3F',
+    },
+    preferenceQuestion: {
+        fontSize: 17,
+        fontWeight: '700',
+        marginBottom: 18,
+        textAlign: 'center',
+        color: '#2C5B3F',
+    },
+    selectedText: {
+        marginTop: 24,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        backgroundColor: '#E8F5E9',
+        borderRadius: 12,
+        color: '#2C5B3F',
+        fontWeight: '700',
+        textAlign: 'center',
+        width: '90%',
+        alignSelf: 'center',
+        shadowColor: '#2C5B3F',
+        shadowOpacity: 0.3,
+        shadowOffset: { width: 0, height: 4 },
+        shadowRadius: 6,
+        elevation: 4,
     },
 });

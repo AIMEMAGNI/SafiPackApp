@@ -5,36 +5,35 @@ import {
     sendPasswordResetEmail,
     signInAnonymously,
     signInWithEmailAndPassword,
+    updateProfile,
 } from 'firebase/auth';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
-    Button,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
-    TouchableOpacity,
-    View,
+    TouchableOpacity
 } from 'react-native';
 import { auth } from '../firebaseConfig';
 
 export default function AuthScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [username, setUsername] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const validateInputs = (): boolean => {
-        if (!email && !password) {
+    const validateInputs = (includeUsername = false): boolean => {
+        if (includeUsername && !username.trim()) {
+            Alert.alert('Validation Error', 'Please enter a username.');
+            return false;
+        }
+        if (!email.trim() || !password.trim()) {
             Alert.alert('Validation Error', 'Please enter email and password.');
-            return false;
-        }
-        if (!email) {
-            Alert.alert('Validation Error', 'Please enter your email.');
-            return false;
-        }
-        if (!password) {
-            Alert.alert('Validation Error', 'Please enter your password.');
             return false;
         }
         return true;
@@ -44,7 +43,7 @@ export default function AuthScreen() {
         if (!validateInputs()) return;
         setLoading(true);
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            await signInWithEmailAndPassword(auth, email.trim(), password);
         } catch (err: any) {
             Alert.alert('Login Error', err.message || 'Login failed.');
         } finally {
@@ -53,20 +52,19 @@ export default function AuthScreen() {
     };
 
     const handleSignup = async () => {
-        if (!validateInputs()) return;
+        if (!validateInputs(true)) return;
         setLoading(true);
         try {
-            // Check if user is anonymous and wants to convert
             const currentUser = auth.currentUser;
             if (currentUser && currentUser.isAnonymous) {
-                // Convert anonymous user to full account
-                const credential = EmailAuthProvider.credential(email, password);
+                const credential = EmailAuthProvider.credential(email.trim(), password);
                 await linkWithCredential(currentUser, credential);
-                Alert.alert('Account Created', 'Your guest account has been converted to a full account!');
+                await updateProfile(currentUser, { displayName: username.trim() });
+                Alert.alert('Success', 'Guest account converted to full account!');
             } else {
-                // Create new account normally
-                await createUserWithEmailAndPassword(auth, email, password);
-                Alert.alert('Signup Success', 'Your account has been created!');
+                const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+                await updateProfile(userCredential.user, { displayName: username.trim() });
+                Alert.alert('Signup Success', 'Account created successfully!');
             }
         } catch (err: any) {
             Alert.alert('Signup Error', err.message || 'Signup failed.');
@@ -76,17 +74,14 @@ export default function AuthScreen() {
     };
 
     const handlePasswordReset = async () => {
-        if (!email) {
-            Alert.alert('Reset Password', 'Please enter your email to reset password.');
+        if (!email.trim()) {
+            Alert.alert('Reset Password', 'Please enter your email.');
             return;
         }
         setLoading(true);
         try {
-            await sendPasswordResetEmail(auth, email);
-            Alert.alert(
-                'Password Reset',
-                'Password reset email sent! Please check your inbox.'
-            );
+            await sendPasswordResetEmail(auth, email.trim());
+            Alert.alert('Email Sent', 'Please check your inbox.');
         } catch (err: any) {
             Alert.alert('Reset Error', err.message || 'Failed to send reset email.');
         } finally {
@@ -99,63 +94,110 @@ export default function AuthScreen() {
         try {
             await signInAnonymously(auth);
         } catch (err: any) {
-            Alert.alert('Guest Login Error', err.message || 'Failed to login as guest.');
+            Alert.alert('Guest Login Error', err.message || 'Guest login failed.');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <View style={styles.container}>
-            <TextInput
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                style={styles.input}
-            />
-            <TextInput
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                style={styles.input}
-            />
+        <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+            <ScrollView
+                contentContainerStyle={styles.container}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Text style={styles.title}>Welcome</Text>
 
-            {loading ? (
-                <ActivityIndicator size="large" color="#000" style={{ marginVertical: 20 }} />
-            ) : (
-                <>
-                    <Button title="Login" onPress={handleLogin} />
-                    <View style={{ height: 10 }} />
-                    <Button title="Sign Up" onPress={handleSignup} />
-                    <View style={{ height: 10 }} />
-                    <Button title="Continue as Guest" onPress={handleGuestLogin} />
-                    <TouchableOpacity onPress={handlePasswordReset} style={{ marginTop: 15 }}>
-                        <Text style={styles.forgotText}>Forgot Password?</Text>
-                    </TouchableOpacity>
-                </>
-            )}
-        </View>
+                <TextInput
+                    placeholder="Username (for signup)"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="words"
+                    style={styles.input}
+                />
+                <TextInput
+                    placeholder="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={styles.input}
+                />
+                <TextInput
+                    placeholder="Password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    style={styles.input}
+                />
+
+                {loading ? (
+                    <ActivityIndicator size="large" color="#2C5B3F" style={{ marginVertical: 20 }} />
+                ) : (
+                    <>
+                        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+                            <Text style={styles.buttonText}>Login</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.button} onPress={handleSignup}>
+                            <Text style={styles.buttonText}>Sign Up</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.button} onPress={handleGuestLogin}>
+                            <Text style={styles.buttonText}>Continue as Guest</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={handlePasswordReset}>
+                            <Text style={styles.forgotText}>Forgot Password?</Text>
+                        </TouchableOpacity>
+                    </>
+                )}
+            </ScrollView>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
-        flex: 1,
+        flexGrow: 1,
         justifyContent: 'center',
         padding: 20,
+        backgroundColor: '#fff',
+    },
+    title: {
+        fontSize: 26,
+        fontWeight: '600',
+        textAlign: 'center',
+        marginBottom: 30,
+        color: '#2C5B3F',
     },
     input: {
         borderBottomWidth: 1,
+        borderColor: '#A1B5AB', // Softened green-tinted border
         marginBottom: 20,
-        paddingVertical: 8,
+        paddingVertical: 10,
         fontSize: 16,
     },
-    forgotText: {
-        color: '#1565C0',
+    button: {
+        backgroundColor: '#2C5B3F',
+        paddingVertical: 14,
+        borderRadius: 8,
+        marginBottom: 15,
+    },
+    buttonText: {
+        color: '#fff',
         textAlign: 'center',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    forgotText: {
+        color: '#2C5B3F',
+        textAlign: 'center',
+        marginTop: 15,
         textDecorationLine: 'underline',
+        fontSize: 14,
     },
 });
