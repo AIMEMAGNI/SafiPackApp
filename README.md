@@ -4,33 +4,39 @@
 
 By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** empowers a cleaner, more informed future—starting right from your home or local store.
 
+---
 
 ## 📱 Core Features
 
-* 📸 **Instant Packaging Scan** – Use your phone’s camera or image gallery to scan product packaging.
-* 🧠 **Smart Material Detection** – The app automatically classifies packaging material using AI-powered models.
-* 🌍 **Eco-Score Rating** – Each scan returns a clear A–E eco-score based on the impact of the material.
-* 🗂️ **Scan History** – Quickly access a history of past scans and results.
-* 🔐 **User Login & Accounts** – Secure sign-up and login using your email to track your sustainability journey.
-* ☁️ **Cloud-Based Storage** – All scans and images are safely stored for future reference and usage.
+* **Instant Packaging Scan** – Use your phone’s camera or image gallery to scan product packaging.
+* **Smart Material Detection** – The app automatically classifies packaging material using AI-powered models.
+* **Eco-Score Rating** – Each scan returns a clear A–E eco-score based on the impact of the material.
+* **Scan History** – Quickly access a history of past scans and results.
+* **User Login & Accounts** – Secure sign-up and login using your email to track your sustainability journey.
+* **Cloud-Based Storage** – All scans and images are safely stored for future reference and usage.
 
+---
 
 ## 🎥 Demo Video
 
 See SafiPackApp in action:
 👉 [**Watch Demo Video**](https://screenrec.com/share/eBscIJ4nFM)
 
+---
+
 ## 🖼️ App Screenshots
 
 Explore how the app looks and feels:
 📸 [**View Screenshots**](https://github.com/yourusername/SafiPackApp/tree/main/screenshots)
 
+---
 
 ## 📲 Download APK
 
 Try SafiPackApp on your Android phone today:
-⬇️ [**Download APK**](https://github.com/yourusername/SafiPackApp/releases/download/v1.0.0/SafiPackApp.apk)
+⬇️ [**Download APK**](https://drive.google.com/file/d/1Lyz-VwJy4Jlq7T3R8kkC8bIYCM6q3Kpl/view?usp=drive_link)
 
+---
 
 ## 🧩 Built With
 
@@ -41,6 +47,7 @@ Try SafiPackApp on your Android phone today:
 | Backend Platform | Firebase (Authentication, Database, Storage)                     |
 | ML Integration   | Mobile-optimized model (MobileNetV3)                             |
 
+---
 
 ## 🚀 Get Started
 
@@ -66,6 +73,7 @@ expo start
 
 Scan the QR code using the **Expo Go** app on your mobile device.
 
+---
 
 ## 🔧 Firebase Configuration
 
@@ -102,6 +110,8 @@ const storage = getStorage(app);
 export { auth, database, storage };
 ```
 
+---
+
 ## 🗂️ Project Structure
 
 ```
@@ -114,6 +124,8 @@ SafiPackApp/
 ├── package.json
 └── README.md
 ```
+
+---
 
 ## 🤝 Contributors
 
