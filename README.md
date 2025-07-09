@@ -4,7 +4,7 @@
 
 By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** empowers a cleaner, more informed future—starting right from your home or local store.
 
----
+<br>
 
 ## 📱 Core Features
 
@@ -15,28 +15,28 @@ By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** 
 * **User Login & Accounts** – Secure sign-up and login using your email to track your sustainability journey.
 * **Cloud-Based Storage** – All scans and images are safely stored for future reference and usage.
 
----
+<br>
 
 ## 🎥 Demo Video
 
 See SafiPackApp in action:
 👉 [**Watch Demo Video**](https://screenrec.com/share/eBscIJ4nFM)
 
----
+<br>
 
 ## 🖼️ App Screenshots
 
 Explore how the app looks and feels:
-📸 [**View Screenshots**](https://github.com/AIMEMAGNI/SafiPackApp/blob/main/App%20ScreenSHot.jpg)
 
----
+![App Screenshot](https://github.com/AIMEMAGNI/SafiPackApp/raw/main/App%20ScreenSHot.jpg)
+
 
 ## 📲 Download APK
 
 Try SafiPackApp on your Android phone today:
 ⬇️ [**Download APK**](https://drive.google.com/file/d/1Lyz-VwJy4Jlq7T3R8kkC8bIYCM6q3Kpl/view?usp=drive_link)
 
----
+<br>
 
 ## 🧩 Built With
 
@@ -47,7 +47,7 @@ Try SafiPackApp on your Android phone today:
 | Backend Platform | Firebase (Authentication, Database, Storage)                     |
 | ML Integration   | Mobile-optimized model (MobileNetV3)                             |
 
----
+<br>
 
 ## 🚀 Get Started
 
@@ -73,7 +73,7 @@ expo start
 
 Scan the QR code using the **Expo Go** app on your mobile device.
 
----
+<br>
 
 ## 🔧 Firebase Configuration
 
@@ -110,7 +110,7 @@ const storage = getStorage(app);
 export { auth, database, storage };
 ```
 
----
+<br>
 
 ## 🗂️ Project Structure
 
@@ -125,7 +125,7 @@ SafiPackApp/
 └── README.md
 ```
 
----
+<br>
 
 ## 🤝 Contributors
 
