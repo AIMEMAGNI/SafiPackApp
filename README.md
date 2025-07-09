@@ -27,7 +27,7 @@ See SafiPackApp in action:
 ## 🖼️ App Screenshots
 
 Explore how the app looks and feels:
-📸 [**View Screenshots**](https://github.com/yourusername/SafiPackApp/tree/main/screenshots)
+📸 [**View Screenshots**](https://github.com/AIMEMAGNI/SafiPackApp/blob/main/App%20ScreenSHot.jpg)
 
 ---
 
