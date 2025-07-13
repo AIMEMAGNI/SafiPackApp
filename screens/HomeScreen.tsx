@@ -644,6 +644,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: 12,
     },
+    
     ecoScoreItem: {
         width: (width - 56) / 2,
         backgroundColor: 'white',

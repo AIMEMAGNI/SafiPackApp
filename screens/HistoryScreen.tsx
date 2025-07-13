@@ -285,6 +285,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         paddingHorizontal: 20,
     },
+    
     emptyText: {
         fontSize: 16,
         color: '#2C5B3F',
