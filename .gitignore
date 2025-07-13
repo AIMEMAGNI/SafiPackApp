@@ -2,6 +2,7 @@
 node_modules/
 
 # firebaseConfig.ts
+firebaseConfig.ts
 
 # Expo files
 .expo/
