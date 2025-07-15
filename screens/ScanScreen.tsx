@@ -14,6 +14,7 @@ import {
     Text,
     View,
 } from 'react-native';
+import categoriesCleanedAll from '../assets/categories_cleaned_all.json';
 import { auth, database, storage } from '../firebaseConfig';
 
 export default function ScanScreen() {
@@ -29,9 +30,16 @@ export default function ScanScreen() {
     };
 
     const copyImageToLocalCache = async (uri: string): Promise<string> => {
-        const filename = uri.split('/').pop() || `photo_${Date.now()}.jpg`;
-        const newPath = `${FileSystem.cacheDirectory}${filename}`;
         try {
+            const filename = uri.split('/').pop() || `photo_${Date.now()}.jpg`;
+            const newPath = `${FileSystem.cacheDirectory}${filename}`;
+
+            const sourceInfo = await FileSystem.getInfoAsync(uri);
+            if (!sourceInfo.exists) {
+                console.warn('Source image does not exist, using original URI');
+                return uri;
+            }
+
             await FileSystem.copyAsync({ from: uri, to: newPath });
             return newPath;
         } catch (error) {
@@ -44,13 +52,19 @@ export default function ScanScreen() {
         try {
             const info = await FileSystem.getInfoAsync(uri);
             if (!info.exists) {
-                console.error('Image file does not exist');
+                console.error('Image file does not exist at:', uri);
                 return uri;
             }
-            const manipulated = await manipulateAsync(uri, [], {
-                compress: 0.8,
-                format: SaveFormat.JPEG,
-            });
+
+            const manipulated = await manipulateAsync(
+                uri,
+                [{ resize: { width: 800 } }],
+                {
+                    compress: 0.7,
+                    format: SaveFormat.JPEG,
+                }
+            );
+
             return manipulated.uri;
         } catch (error) {
             console.error('Image compression failed:', error);
@@ -59,12 +73,16 @@ export default function ScanScreen() {
     };
 
     const uploadImageToStorage = async (uri: string, userId: string): Promise<string> => {
-        const response = await fetch(uri);
-        const blob = await response.blob();
-        const imageRef = storageRef(storage, `scans/${userId}/${Date.now()}.jpg`);
-        await uploadBytes(imageRef, blob);
-        const downloadUrl = await getDownloadURL(imageRef);
-        return downloadUrl;
+        try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            const imageRef = storageRef(storage, `scans/${userId}/${Date.now()}.jpg`);
+            await uploadBytes(imageRef, blob);
+            return await getDownloadURL(imageRef);
+        } catch (error) {
+            console.error('Error uploading image to storage:', error);
+            throw error;
+        }
     };
 
     const saveScanResults = async (localImageUri: string, scanData: any, preferredChoice: string | null = null) => {
@@ -83,7 +101,6 @@ export default function ScanScreen() {
                     await uploadBytes(altRef, altBlob);
                     alternativeImageUrl = await getDownloadURL(altRef);
                 } catch {
-                    console.warn('Alternative image upload failed. Using original URL.');
                     alternativeImageUrl = scanData.greener_alternative.image_url;
                 }
             }
@@ -115,7 +132,6 @@ export default function ScanScreen() {
 
             const scansRef = dbRef(database, `scans/${userId}`);
             await push(scansRef, scanRecord);
-            console.log('Scan saved successfully');
         } catch (error) {
             console.error('Save error:', error);
             throw new Error('Saving scan failed');
@@ -123,64 +139,62 @@ export default function ScanScreen() {
     };
 
     const takePhoto = async () => {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'Camera access is required.');
-            return;
-        }
+        try {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Denied', 'Camera access is required.');
+                return;
+            }
 
-        const photo = await ImagePicker.launchCameraAsync({
-            quality: 0.8,
-            base64: false,
-            allowsEditing: false,
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            aspect: undefined,
-            exif: false,
-        });
+            const photo = await ImagePicker.launchCameraAsync({
+                quality: 0.8,
+                base64: false,
+                allowsEditing: false,
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            });
 
-        if (!photo.canceled && photo.assets?.length > 0) {
-            try {
-                const localPath = await copyImageToLocalCache(photo.assets[0].uri);
+            if (!photo.canceled && photo.assets?.length > 0) {
+                const originalUri = photo.assets[0].uri;
+                const localPath = await copyImageToLocalCache(originalUri);
                 const compressedUri = await compressImage(localPath);
+
                 setImageUri(compressedUri);
                 setResult(null);
                 setPreferred(null);
-                console.log('Camera image processed successfully:', compressedUri);
-            } catch (error) {
-                console.error('Error processing camera image:', error);
-                Alert.alert('Error', 'Failed to process the image. Please try again.');
             }
+        } catch (error) {
+            console.error('Error taking photo:', error);
+            Alert.alert('Error', 'Failed to take photo. Please try again.');
         }
     };
 
     const pickImage = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'Gallery access is required.');
-            return;
-        }
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Permission Denied', 'Gallery access is required.');
+                return;
+            }
 
-        const picked = await ImagePicker.launchImageLibraryAsync({
-            quality: 0.8,
-            base64: false,
-            allowsEditing: false,
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            aspect: undefined,
-            exif: false,
-        });
+            const picked = await ImagePicker.launchImageLibraryAsync({
+                quality: 0.8,
+                base64: false,
+                allowsEditing: false,
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            });
 
-        if (!picked.canceled && picked.assets?.length > 0) {
-            try {
-                const localPath = await copyImageToLocalCache(picked.assets[0].uri);
+            if (!picked.canceled && picked.assets?.length > 0) {
+                const originalUri = picked.assets[0].uri;
+                const localPath = await copyImageToLocalCache(originalUri);
                 const compressedUri = await compressImage(localPath);
+
                 setImageUri(compressedUri);
                 setResult(null);
                 setPreferred(null);
-                console.log('Gallery image processed successfully:', compressedUri);
-            } catch (error) {
-                console.error('Error processing gallery image:', error);
-                Alert.alert('Error', 'Failed to process the image. Please try again.');
             }
+        } catch (error) {
+            console.error('Error picking image:', error);
+            Alert.alert('Error', 'Failed to select image. Please try again.');
         }
     };
 
@@ -193,22 +207,23 @@ export default function ScanScreen() {
     };
 
     const isValidFoodProduct = (prediction: any) => {
+        if (!prediction) return false;
+
         const category = prediction?.main_category_en?.toLowerCase();
         const ecoScore = prediction?.environmental_score_grade;
         const nutriScore = prediction?.nutriscore_grade;
+        const packaging = prediction?.packaging_en;
+        const brands = prediction?.brands_en;
 
-        const foodCategories = [
-            'beverages', 'dairy', 'fruits', 'vegetables', 'snacks', 'cereals',
-            'meat', 'fish', 'bread', 'pasta', 'rice', 'oils', 'sauces',
-            'sweets', 'chocolate', 'coffee', 'tea', 'water', 'juice',
-            'milk', 'cheese', 'yogurt', 'cookies', 'crackers', 'chips',
-            'nuts', 'seeds', 'spices', 'condiments', 'baby-food',
-            'breakfast', 'desserts', 'frozen', 'canned', 'dried',
-        ];
+        const foodCategories = categoriesCleanedAll.map(cat => cat.toLowerCase());
 
-        return foodCategories.some(f =>
-            category?.includes(f) || f.includes(category || '')
-        ) && (ecoScore || nutriScore);
+        const hasAnyFoodIndicator =
+            (category && foodCategories.some(f => category.includes(f) || f.includes(category))) ||
+            (packaging && packaging.length > 0) ||
+            (brands && brands.length > 0) ||
+            ecoScore || nutriScore;
+
+        return hasAnyFoodIndicator;
     };
 
     const uploadAndScan = async () => {
@@ -222,60 +237,50 @@ export default function ScanScreen() {
         setPreferred(null);
 
         try {
-            const processedUri = await compressImage(imageUri);
-
-            const fileInfo = await FileSystem.getInfoAsync(processedUri);
-            if (!fileInfo.exists) {
-                throw new Error('Processed image file not found');
+            const imageInfo = await FileSystem.getInfoAsync(imageUri);
+            if (!imageInfo.exists) {
+                throw new Error('Image file not found. Please try again.');
             }
 
+            const processedUri = await compressImage(imageUri);
             const formData = new FormData();
-            const filename = `image_${Date.now()}.jpg`;
-
             formData.append('file', {
                 uri: processedUri,
-                name: filename,
+                name: `image_${Date.now()}.jpg`,
                 type: 'image/jpeg',
             } as any);
 
             const apiUrl = 'https://aimemagni-SafiPack.hf.space/predict';
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 45000);
-
-            const apiResponse = await fetch(apiUrl, {
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 body: formData,
-                signal: controller.signal,
                 headers: {
-                    'Content-Type': 'multipart/form-data',
+                    'Accept': 'application/json',
                 },
             });
 
-            clearTimeout(timeoutId);
-
-            if (!apiResponse.ok) {
-                const errorText = await apiResponse.text();
-                throw new Error(`API Error: ${apiResponse.status} - ${errorText}`);
+            if (!response.ok) {
+                throw new Error(`API Error: ${response.status}`);
             }
 
-            const data = await apiResponse.json();
+            const data = await response.json();
 
             if (!data || !data.prediction) {
                 throw new Error('No prediction data returned.');
             }
 
             if (!isValidFoodProduct(data.prediction)) {
-                Alert.alert('Invalid Product', 'Please scan a food/beverage product with clear labels.');
-                return;
+                Alert.alert(
+                    'Limited Information',
+                    'Showing available product information.',
+                    [{ text: "OK" }]
+                );
             }
 
             setResult(data);
         } catch (error: any) {
-            if (error.name === 'AbortError') {
-                Alert.alert('Timeout', 'The scan took too long. Please try again.');
-            } else {
-                Alert.alert('Scan Failed', error.message || 'Something went wrong. Please try again.');
-            }
+            console.error('Scan error:', error);
+            Alert.alert('Scan Failed', error.message || 'Something went wrong. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -288,17 +293,11 @@ export default function ScanScreen() {
             setPreferred(choice);
             Alert.alert(
                 "Thank you!",
-                `You selected the ${choice === 'product' ? 'Scanned Product' : 'Greener Alternative'} as preferred.`,
-                [
-                    {
-                        text: "OK",
-                        onPress: () => {
-                            setTimeout(resetScreen, 500);
-                        }
-                    }
-                ]
+                `You selected the ${choice === 'product' ? 'Scanned Product' : 'Greener Alternative'}.`,
+                [{ text: "OK", onPress: () => setTimeout(resetScreen, 500) }]
             );
-        } catch {
+        } catch (error) {
+            console.error('Error saving preference:', error);
             Alert.alert("Error", "Could not save your choice.");
         } finally {
             setLoading(false);
@@ -306,7 +305,7 @@ export default function ScanScreen() {
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.title}>Scan Product</Text>
 
             <View style={styles.instructionsContainer}>
@@ -329,7 +328,12 @@ export default function ScanScreen() {
             </View>
 
             <View style={{ height: 20 }} />
-            <Button title="Scan Image" onPress={uploadAndScan} disabled={!imageUri || loading} color="#2C5B3F" />
+            <Button
+                title="Scan Image"
+                onPress={uploadAndScan}
+                disabled={!imageUri || loading}
+                color="#2C5B3F"
+            />
 
             {loading && (
                 <View style={styles.loadingContainer}>
@@ -341,20 +345,40 @@ export default function ScanScreen() {
             {result && !preferred && (
                 <View style={styles.preferenceSection}>
                     <Text style={styles.preferenceQuestion}>
-                        Which one would you choose?
+                        {result.prediction?.main_category_en
+                            ? "Which one would you choose?"
+                            : "Detected Product"}
                     </Text>
 
                     <View style={[styles.preferenceCard, { borderColor: '#2196F3' }]}>
-                        <Text style={styles.preferenceTitle}>Scanned Product</Text>
+
+
                         {imageUri && (
                             <Image source={{ uri: imageUri }} style={styles.altImage} />
                         )}
-                        <Text style={styles.resultText}>Brand: {result.prediction?.brands_en ?? 'N/A'}</Text>
-                        <Text style={[styles.resultText, { color: getEcoScoreColor(result.prediction?.environmental_score_grade) }]}>
-                            Eco-Score: {result.prediction?.environmental_score_grade ?? 'N/A'}
-                        </Text>
+
+                        {result.prediction?.brands_en && (
+                            <Text style={styles.resultText}>Brand: {result.prediction.brands_en}</Text>
+                        )}
+
+                        {result.prediction?.environmental_score_grade ? (
+                            <Text style={[styles.resultText, {
+                                color: getEcoScoreColor(result.prediction.environmental_score_grade)
+                            }]}>
+                                Eco-Score: {result.prediction.environmental_score_grade}
+                            </Text>
+                        ) : (
+                            <Text style={styles.resultText}>Eco-Score: Not detected</Text>
+                        )}
+
+                        {result.prediction?.packaging_en?.length > 0 && (
+                            <Text style={styles.resultText}>
+                                Packaging: {result.prediction.packaging_en.join(', ')}
+                            </Text>
+                        )}
+
                         <Button
-                            title="✅ I prefer this product"
+                            title="✅ Select this product"
                             color="#2196F3"
                             onPress={() => handlePreferenceSelection('product')}
                         />
@@ -363,9 +387,9 @@ export default function ScanScreen() {
                     {result.greener_alternative && (
                         <View style={[styles.preferenceCard, { borderColor: '#4CAF50' }]}>
                             <Text style={styles.preferenceTitle}>Greener Alternative</Text>
-                            <Text style={styles.resultText}>Brand: {result.greener_alternative?.brands_en ?? 'N/A'}</Text>
+                            <Text style={styles.resultText}>Brand: {result.greener_alternative?.brands_en || 'N/A'}</Text>
                             <Text style={[styles.resultText, { color: getEcoScoreColor(result.greener_alternative?.environmental_score_grade) }]}>
-                                Eco-Score: {result.greener_alternative?.environmental_score_grade ?? 'N/A'}
+                                Eco-Score: {result.greener_alternative?.environmental_score_grade || 'N/A'}
                             </Text>
                             {result.greener_alternative.image_url && (
                                 <Image source={{ uri: result.greener_alternative.image_url }} style={styles.altImage} />
@@ -382,7 +406,7 @@ export default function ScanScreen() {
 
             {preferred && (
                 <Text style={styles.selectedText}>
-                    ✅ You selected the {preferred === 'product' ? 'Scanned Product' : 'Greener Alternative'} as your preference.
+                    ✅ You selected the {preferred === 'product' ? 'Scanned Product' : 'Greener Alternative'}.
                 </Text>
             )}
         </ScrollView>
@@ -411,11 +435,6 @@ const styles = StyleSheet.create({
         width: '100%',
         borderLeftWidth: 6,
         borderLeftColor: '#2C5B3F',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
     },
     instructionsText: {
         fontSize: 15,
@@ -481,11 +500,6 @@ const styles = StyleSheet.create({
         marginBottom: 24,
         backgroundColor: '#FAFAFA',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2,
         width: '90%',
     },
     preferenceTitle: {
@@ -512,12 +526,5 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         textAlign: 'center',
         width: '90%',
-        alignSelf: 'center',
-        shadowColor: '#2C5B3F',
-        shadowOpacity: 0.3,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 6,
-        elevation: 4,
     },
 });
-
