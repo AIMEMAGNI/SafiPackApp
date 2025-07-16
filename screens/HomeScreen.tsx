@@ -5,6 +5,7 @@ import { ref as dbRef, onValue } from 'firebase/database';
 import React, { useEffect, useState } from 'react';
 import {
     Dimensions,
+    FlatList,
     Image,
     Modal,
     RefreshControl,
@@ -67,24 +68,75 @@ const ECOSCORE_DESCRIPTIONS = {
     },
 };
 
+// Improved badge system with progressive requirements
 const BADGES = [
+    // Scan count badges - progressive
+    {
+        id: 'first_scan',
+        name: 'First Scan',
+        icon: 'qr-code-scanner',
+        color: '#4CAF50',
+        description: 'Scanned your first product!',
+        requirement: 1,
+        type: 'scan_count'
+    },
+    {
+        id: 'product_explorer',
+        name: 'Product Explorer',
+        icon: 'explore',
+        color: '#FF5722',
+        description: 'Scanned 10 products',
+        requirement: 10,
+        type: 'scan_count'
+    },
+    {
+        id: 'scanner_pro',
+        name: 'Scanner Pro',
+        icon: 'analytics',
+        color: '#2196F3',
+        description: 'Scanned 25 products',
+        requirement: 25,
+        type: 'scan_count'
+    },
+    {
+        id: 'data_collector',
+        name: 'Data Collector',
+        icon: 'assessment',
+        color: '#795548',
+        description: 'Scanned 50 products',
+        requirement: 50,
+        type: 'scan_count'
+    },
+    {
+        id: 'scan_master',
+        name: 'Scan Master',
+        icon: 'verified',
+        color: '#9C27B0',
+        description: 'Scanned 100 products',
+        requirement: 100,
+        type: 'scan_count'
+    },
+
+    // Green choice badges - require minimum scans AND percentage
     {
         id: 'eco_starter',
         name: 'Eco Starter',
         icon: 'eco',
         color: '#4CAF50',
-        description: 'Made your first sustainable choice!',
-        requirement: 1, // 1% or higher
-        type: 'rate'
+        description: 'Made 3 sustainable choices!',
+        requirement: 3,
+        type: 'green_count',
+        minScans: 5
     },
     {
         id: 'green_warrior',
         name: 'Green Warrior',
         icon: 'shield',
         color: '#2E7D32',
-        description: 'Maintaining 25% sustainable choices',
-        requirement: 25,
-        type: 'rate'
+        description: 'Maintaining 30% sustainable choices',
+        requirement: 30,
+        type: 'green_rate',
+        minScans: 10
     },
     {
         id: 'eco_champion',
@@ -93,43 +145,48 @@ const BADGES = [
         color: '#1B5E20',
         description: 'Achieving 50% sustainable choices',
         requirement: 50,
-        type: 'rate'
+        type: 'green_rate',
+        minScans: 20
     },
     {
         id: 'planet_guardian',
         name: 'Planet Guardian',
         icon: 'public',
         color: '#0D47A1',
-        description: 'Maintaining 75% sustainable choices',
-        requirement: 75,
-        type: 'rate'
+        description: 'Maintaining 70% sustainable choices',
+        requirement: 70,
+        type: 'green_rate',
+        minScans: 30
     },
     {
         id: 'eco_master',
         name: 'Eco Master',
-        icon: 'military_tech',
+        icon: 'emoji-events', // Changed from military_tech
         color: '#FF6F00',
-        description: 'Achieving 90% sustainable choices',
-        requirement: 90,
-        type: 'rate'
+        description: 'Achieving 85% sustainable choices',
+        requirement: 85,
+        type: 'green_rate',
+        minScans: 50
+    },
+
+    // Streak badges
+    {
+        id: 'consistent_scanner',
+        name: 'Consistent Scanner',
+        icon: 'schedule',
+        color: '#FF9800',
+        description: 'Scanned products on 3 different days',
+        requirement: 3,
+        type: 'scan_days'
     },
     {
-        id: 'product_explorer',
-        name: 'Product Explorer',
-        icon: 'explore',
-        color: '#FF5722',
-        description: 'Scanned 50 products',
-        requirement: 50,
-        type: 'scan_count'
-    },
-    {
-        id: 'data_collector',
-        name: 'Data Collector',
-        icon: 'analytics',
-        color: '#795548',
-        description: 'Scanned 100 products',
-        requirement: 100,
-        type: 'scan_count'
+        id: 'weekly_warrior',
+        name: 'Weekly Warrior',
+        icon: 'today',
+        color: '#3F51B5',
+        description: 'Scanned products on 7 different days',
+        requirement: 7,
+        type: 'scan_days'
     }
 ];
 
@@ -144,6 +201,9 @@ const HomeScreen: React.FC = () => {
     const [badgeModalVisible, setBadgeModalVisible] = useState(false);
     const [selectedBadge, setSelectedBadge] = useState<any>(null);
     const [earnedBadges, setEarnedBadges] = useState<any[]>([]);
+    const [packagingModalVisible, setPackagingModalVisible] = useState(false);
+    const [selectedPackaging, setSelectedPackaging] = useState<any>(null);
+    const [packagingItems, setPackagingItems] = useState<any[]>([]);
 
     useEffect(() => {
         const user = auth.currentUser;
@@ -175,16 +235,37 @@ const HomeScreen: React.FC = () => {
 
             setScans(entries);
 
-            // Calculate earned badges
+            // Calculate earned badges with improved logic
             const greenChoiceRate = entries.length > 0 ? Math.round((alternatives.length / entries.length) * 100) : 0;
+
+            // Calculate unique scan days
+            const scanDays = new Set(entries.map((item: any) => {
+                const date = new Date(item.timestamp || Date.now());
+                return date.toDateString();
+            }));
+            const uniqueScanDays = scanDays.size;
+
             const newEarnedBadges = BADGES.filter(badge => {
-                if (badge.type === 'rate') {
-                    return greenChoiceRate >= badge.requirement;
-                } else if (badge.type === 'scan_count') {
-                    return entries.length >= badge.requirement;
+                switch (badge.type) {
+                    case 'scan_count':
+                        return entries.length >= badge.requirement;
+
+                    case 'green_count':
+                        return alternatives.length >= badge.requirement &&
+                            entries.length >= (badge.minScans || 0);
+
+                    case 'green_rate':
+                        return greenChoiceRate >= badge.requirement &&
+                            entries.length >= (badge.minScans || 0);
+
+                    case 'scan_days':
+                        return uniqueScanDays >= badge.requirement;
+
+                    default:
+                        return false;
                 }
-                return false;
             });
+
             setEarnedBadges(newEarnedBadges);
         });
 
@@ -229,6 +310,20 @@ const HomeScreen: React.FC = () => {
         setBadgeModalVisible(true);
     };
 
+    const handlePackagingPress = (category: any) => {
+        const items = scans.filter(scan => {
+            const packagingList = scan?.prediction?.packaging || scan?.prediction?.packaging_en || [];
+            const packagingArray = Array.isArray(packagingList)
+                ? packagingList.map((p: string) => p.toLowerCase())
+                : [packagingList.toLowerCase()];
+            return packagingArray.some((p: string) => p.includes(category.name.toLowerCase()));
+        });
+
+        setSelectedPackaging(category);
+        setPackagingItems(items);
+        setPackagingModalVisible(true);
+    };
+
     const packagingCategoryCount = PACKAGING_CATEGORIES.map(category => ({
         ...category,
         count: scans.filter(scan => {
@@ -239,6 +334,70 @@ const HomeScreen: React.FC = () => {
             return packagingArray.some((p: string) => p.includes(category.name.toLowerCase()));
         }).length
     }));
+
+    const renderPackagingModal = () => {
+        return (
+            <Modal
+                animationType="slide"
+                transparent={true}
+                visible={packagingModalVisible}
+                onRequestClose={() => setPackagingModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <View style={[styles.modalBadgeContainer, { backgroundColor: selectedPackaging?.color }]}>
+                                <MaterialIcons name={selectedPackaging?.icon as any} size={32} color="white" />
+                            </View>
+                            <TouchableOpacity
+                                style={styles.closeButton}
+                                onPress={() => setPackagingModalVisible(false)}
+                            >
+                                <MaterialIcons name="close" size={24} color="#757575" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={styles.modalTitle}>
+                            {selectedPackaging?.name} Packaging ({packagingItems.length} items)
+                        </Text>
+
+                        <FlatList
+                            data={packagingItems}
+                            keyExtractor={(item, index) => index.toString()}
+                            renderItem={({ item }) => (
+                                <View style={styles.packagingItem}>
+                                    <View style={styles.packagingItemInfo}>
+                                        <Text style={styles.packagingItemName}>
+                                            {item.prediction?.product_name || 'Unknown Product'}
+                                        </Text>
+                                        <Text style={styles.packagingItemDate}>
+                                            {new Date(item.timestamp || Date.now()).toLocaleDateString()}
+                                        </Text>
+                                        <Text style={styles.packagingItemChoice}>
+                                            Choice: {item.preferred === 'alternative' ? 'Green Alternative' : 'Original Product'}
+                                        </Text>
+                                    </View>
+                                    <View style={[
+                                        styles.choiceIndicator,
+                                        { backgroundColor: item.preferred === 'alternative' ? '#4CAF50' : '#FF9800' }
+                                    ]} />
+                                </View>
+                            )}
+                            style={styles.packagingItemsList}
+                            showsVerticalScrollIndicator={false}
+                        />
+
+                        <TouchableOpacity
+                            style={styles.modalButton}
+                            onPress={() => setPackagingModalVisible(false)}
+                        >
+                            <Text style={styles.modalButtonText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
 
     const renderEcoScoreModal = () => {
         const ecoScoreData = selectedEcoScore ? ECOSCORE_DESCRIPTIONS[selectedEcoScore as keyof typeof ECOSCORE_DESCRIPTIONS] : null;
@@ -316,9 +475,13 @@ const HomeScreen: React.FC = () => {
                                 <View style={styles.modalTipContainer}>
                                     <MaterialIcons name="celebration" size={20} color="#FF9800" />
                                     <Text style={styles.modalTip}>
-                                        {selectedBadge.type === 'rate'
+                                        {selectedBadge.type === 'green_rate'
                                             ? `You've maintained ${selectedBadge.requirement}% sustainable choices!`
-                                            : `You've scanned ${selectedBadge.requirement} products!`
+                                            : selectedBadge.type === 'green_count'
+                                                ? `You've made ${selectedBadge.requirement} green choices!`
+                                                : selectedBadge.type === 'scan_days'
+                                                    ? `You've scanned on ${selectedBadge.requirement} different days!`
+                                                    : `You've scanned ${selectedBadge.requirement} products!`
                                         }
                                     </Text>
                                 </View>
@@ -418,12 +581,17 @@ const HomeScreen: React.FC = () => {
                 {/* Packaging Categories Section */}
                 <View style={styles.categoriesSection}>
                     <Text style={styles.sectionTitle}>Packaging Categories</Text>
-                    <Text style={styles.sectionSubtitle}>Your scanned products by packaging type</Text>
+                    <Text style={styles.sectionSubtitle}>Your scanned products by packaging type (tap to view items)</Text>
                     <View style={styles.packagingCategoryGrid}>
                         {packagingCategoryCount.map((category) => (
-                            <View
+                            <TouchableOpacity
                                 key={category.name}
-                                style={styles.categoryCard}
+                                style={[
+                                    styles.categoryCard,
+                                    category.count === 0 && styles.categoryCardDisabled
+                                ]}
+                                onPress={() => category.count > 0 && handlePackagingPress(category)}
+                                disabled={category.count === 0}
                             >
                                 <View style={[styles.categoryIconContainer, { backgroundColor: category.color }]}>
                                     <MaterialIcons name={category.icon as any} size={24} color="white" />
@@ -434,7 +602,7 @@ const HomeScreen: React.FC = () => {
                                 <Text style={styles.categoryCount}>
                                     {category.count} items
                                 </Text>
-                            </View>
+                            </TouchableOpacity>
                         ))}
                     </View>
                 </View>
@@ -473,6 +641,9 @@ const HomeScreen: React.FC = () => {
 
             {/* Badge Modal */}
             {renderBadgeModal()}
+
+            {/* Packaging Modal */}
+            {renderPackagingModal()}
         </SafeAreaView>
     );
 };
@@ -617,6 +788,9 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#E0E0E0',
     },
+    categoryCardDisabled: {
+        opacity: 0.6,
+    },
     categoryIconContainer: {
         width: 48,
         height: 48,
@@ -644,7 +818,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         gap: 12,
     },
-    
+
     ecoScoreItem: {
         width: (width - 56) / 2,
         backgroundColor: 'white',
@@ -797,6 +971,53 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    packagingItemsList: {
+        maxHeight: height * 0.4, // Limit height to 40% of screen
+        marginVertical: 16,
+    },
+
+    packagingItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa',
+        padding: 16,
+        marginBottom: 8,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e9ecef',
+    },
+
+    packagingItemInfo: {
+        flex: 1,
+        marginRight: 12,
+    },
+
+    packagingItemName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#2c3e50',
+        marginBottom: 4,
+    },
+
+    packagingItemDate: {
+        fontSize: 12,
+        color: '#7f8c8d',
+        marginBottom: 4,
+    },
+
+    packagingItemChoice: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#34495e',
+    },
+
+    choiceIndicator: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        marginLeft: 8,
+    },
+
 });
 
 export default HomeScreen;

@@ -17,6 +17,16 @@ import {
 import categoriesCleanedAll from '../assets/categories_cleaned_all.json';
 import { auth, database, storage } from '../firebaseConfig';
 
+const ECOSCORE_DESCRIPTIONS = {
+    'A+': 'Exceptional: Lowest environmental impact with sustainable materials and minimal packaging.',
+    'A': 'Excellent: Very low environmental impact with sustainable practices.',
+    'B': 'Good: Good environmental performance with some sustainable practices.',
+    'C': 'Moderate: Average environmental impact with room for improvement.',
+    'D': 'Poor: Higher environmental impact with limited sustainability.',
+    'E': 'Very Poor: Significant environmental impact, minimal sustainability.',
+    'F': 'Severe: Highest environmental impact with poor sustainability.',
+};
+
 export default function ScanScreen() {
     const [imageUri, setImageUri] = useState<string | null>(null);
     const [result, setResult] = useState<any | null>(null);
@@ -116,11 +126,9 @@ export default function ScanScreen() {
                     category: scanData.prediction?.main_category_en || 'Unknown',
                     ecoScore: scanData.prediction?.environmental_score_grade || 'N/A',
                     packaging,
-                    brands_en: scanData.prediction?.brands_en || 'N/A',
                 },
                 greenerAlternative: scanData.greener_alternative
                     ? {
-                        brand: scanData.greener_alternative.brands_en || 'N/A',
                         ecoScore: scanData.greener_alternative.environmental_score_grade || 'N/A',
                         packaging: scanData.greener_alternative.packaging_en || 'Unknown',
                         imageUrl: alternativeImageUrl,
@@ -199,10 +207,10 @@ export default function ScanScreen() {
     };
 
     const getEcoScoreColor = (score: string) => {
-        const grade = score?.toLowerCase();
-        if (grade === 'a-plus' || grade === 'a' || grade === 'b') return '#2C5B3F';
-        if (grade === 'c' || grade === 'd') return '#FF9800';
-        if (grade === 'e' || grade === 'f') return '#F44336';
+        const grade = score?.toUpperCase();
+        if (grade === 'A+' || grade === 'A' || grade === 'B') return '#2C5B3F';
+        if (grade === 'C' || grade === 'D') return '#FF9800';
+        if (grade === 'E' || grade === 'F') return '#F44336';
         return '#9E9E9E';
     };
 
@@ -211,17 +219,14 @@ export default function ScanScreen() {
 
         const category = prediction?.main_category_en?.toLowerCase();
         const ecoScore = prediction?.environmental_score_grade;
-        const nutriScore = prediction?.nutriscore_grade;
         const packaging = prediction?.packaging_en;
-        const brands = prediction?.brands_en;
 
         const foodCategories = categoriesCleanedAll.map(cat => cat.toLowerCase());
 
         const hasAnyFoodIndicator =
             (category && foodCategories.some(f => category.includes(f) || f.includes(category))) ||
             (packaging && packaging.length > 0) ||
-            (brands && brands.length > 0) ||
-            ecoScore || nutriScore;
+            ecoScore;
 
         return hasAnyFoodIndicator;
     };
@@ -304,6 +309,64 @@ export default function ScanScreen() {
         }
     };
 
+    const renderProductCard = (isAlternative = false) => {
+        const data = isAlternative ? result?.greener_alternative : result?.prediction;
+        if (!data) return null;
+
+        const packaging = Array.isArray(data.packaging_en)
+            ? data.packaging_en.join(', ')
+            : data.packaging_en || 'Not detected';
+
+        const ecoScore = data.environmental_score_grade;
+        const ecoScoreDescription = ecoScore
+            ? ECOSCORE_DESCRIPTIONS[ecoScore.toUpperCase() as keyof typeof ECOSCORE_DESCRIPTIONS]
+            : 'No environmental data available';
+
+        return (
+            <View style={[styles.productCard, {
+                borderColor: isAlternative ? '#4CAF50' : '#2196F3'
+            }]}>
+                {isAlternative && (
+                    <Text style={styles.preferenceTitle}>Greener Alternative</Text>
+                )}
+
+                <Image
+                    source={{ uri: isAlternative ? result.greener_alternative?.image_url : imageUri }}
+                    style={styles.productImage}
+                />
+
+                <View style={styles.productInfoContainer}>
+                    {ecoScore ? (
+                        <>
+                            <Text style={[styles.ecoScoreText, {
+                                color: getEcoScoreColor(ecoScore)
+                            }]}>
+                                Eco-Score: {ecoScore}
+                            </Text>
+                            <Text style={[styles.ecoScoreDescription, {
+                                color: getEcoScoreColor(ecoScore)
+                            }]}>
+                                {ecoScoreDescription}
+                            </Text>
+                        </>
+                    ) : (
+                        <Text style={styles.resultText}>Eco-Score: Not detected</Text>
+                    )}
+
+                    <Text style={styles.packagingText}>
+                        Packaging: {packaging}
+                    </Text>
+                </View>
+
+                <Button
+                    title={`✅ Select ${isAlternative ? 'alternative' : 'this product'}`}
+                    color={isAlternative ? '#4CAF50' : '#2196F3'}
+                    onPress={() => handlePreferenceSelection(isAlternative ? 'alternative' : 'product')}
+                />
+            </View>
+        );
+    };
+
     return (
         <ScrollView contentContainerStyle={styles.container}>
             <Text style={styles.title}>Scan Product</Text>
@@ -350,57 +413,8 @@ export default function ScanScreen() {
                             : "Detected Product"}
                     </Text>
 
-                    <View style={[styles.preferenceCard, { borderColor: '#2196F3' }]}>
-
-
-                        {imageUri && (
-                            <Image source={{ uri: imageUri }} style={styles.altImage} />
-                        )}
-
-                        {result.prediction?.brands_en && (
-                            <Text style={styles.resultText}>Brand: {result.prediction.brands_en}</Text>
-                        )}
-
-                        {result.prediction?.environmental_score_grade ? (
-                            <Text style={[styles.resultText, {
-                                color: getEcoScoreColor(result.prediction.environmental_score_grade)
-                            }]}>
-                                Eco-Score: {result.prediction.environmental_score_grade}
-                            </Text>
-                        ) : (
-                            <Text style={styles.resultText}>Eco-Score: Not detected</Text>
-                        )}
-
-                        {result.prediction?.packaging_en?.length > 0 && (
-                            <Text style={styles.resultText}>
-                                Packaging: {result.prediction.packaging_en.join(', ')}
-                            </Text>
-                        )}
-
-                        <Button
-                            title="✅ Select this product"
-                            color="#2196F3"
-                            onPress={() => handlePreferenceSelection('product')}
-                        />
-                    </View>
-
-                    {result.greener_alternative && (
-                        <View style={[styles.preferenceCard, { borderColor: '#4CAF50' }]}>
-                            <Text style={styles.preferenceTitle}>Greener Alternative</Text>
-                            <Text style={styles.resultText}>Brand: {result.greener_alternative?.brands_en || 'N/A'}</Text>
-                            <Text style={[styles.resultText, { color: getEcoScoreColor(result.greener_alternative?.environmental_score_grade) }]}>
-                                Eco-Score: {result.greener_alternative?.environmental_score_grade || 'N/A'}
-                            </Text>
-                            {result.greener_alternative.image_url && (
-                                <Image source={{ uri: result.greener_alternative.image_url }} style={styles.altImage} />
-                            )}
-                            <Button
-                                title="✅ I prefer this alternative"
-                                color="#4CAF50"
-                                onPress={() => handlePreferenceSelection('alternative')}
-                            />
-                        </View>
-                    )}
+                    {renderProductCard()}
+                    {result.greener_alternative && renderProductCard(true)}
                 </View>
             )}
 
@@ -455,13 +469,13 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         backgroundColor: '#F5F5F5',
     },
-    altImage: {
-        width: 160,
-        height: 160,
-        marginTop: 12,
-        marginBottom: 12,
-        borderRadius: 12,
+    productImage: {
+        width: 180,
+        height: 180,
+        marginVertical: 12,
+        borderRadius: 10,
         backgroundColor: '#F5F5F5',
+        alignSelf: 'center',
     },
     buttonRow: {
         flexDirection: 'row',
@@ -482,30 +496,44 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#2C5B3F',
     },
-    resultText: {
-        fontSize: 15,
-        marginBottom: 8,
-        color: '#333',
-        textAlign: 'center',
-    },
     preferenceSection: {
         marginTop: 30,
         width: '100%',
         alignItems: 'center',
     },
-    preferenceCard: {
+    productCard: {
         borderWidth: 1.5,
         borderRadius: 14,
         padding: 18,
         marginBottom: 24,
         backgroundColor: '#FAFAFA',
-        alignItems: 'center',
         width: '90%',
+    },
+    productInfoContainer: {
+        marginBottom: 16,
+    },
+    ecoScoreText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 4,
+    },
+    ecoScoreDescription: {
+        fontSize: 13,
+        textAlign: 'center',
+        fontStyle: 'italic',
+        marginBottom: 12,
+    },
+    packagingText: {
+        fontSize: 15,
+        textAlign: 'center',
+        color: '#333',
+        marginBottom: 12,
     },
     preferenceTitle: {
         fontSize: 17,
         fontWeight: 'bold',
-        marginBottom: 14,
+        marginBottom: 8,
         textAlign: 'center',
         color: '#2C5B3F',
     },
@@ -526,5 +554,11 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         textAlign: 'center',
         width: '90%',
+    },
+    resultText: {
+        fontSize: 15,
+        marginBottom: 8,
+        color: '#333',
+        textAlign: 'center',
     },
 });
