@@ -11,29 +11,32 @@ import {
 import { auth, database } from '../firebaseConfig';
 
 type ScanRecord = {
-    productImageUrl: string;
+    scanId?: string;
+    productImageUrl?: string;
     prediction: {
-        category: string;
-        ecoScore: string;
-        packaging: string[];
+        category?: string;
+        ecoScore?: string;
+        packaging?: string[];
     };
     greenerAlternative: {
-        brand: string;
-        ecoScore: string;
-        packaging: string;
-        imageUrl: string | null;
+        brand?: string;
+        ecoScore?: string;
+        packaging?: string;
+        imageUrl?: string | null;
     } | null;
-    timestamp: number | object;
+    timestamp?: number | null;
     [key: string]: any;
 };
 
 export default function HistoryScreen() {
     const [scans, setScans] = useState<ScanRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         const userId = auth.currentUser?.uid;
         if (!userId) {
+            setError('User not logged in.');
             setLoading(false);
             return;
         }
@@ -41,29 +44,52 @@ export default function HistoryScreen() {
         const scansRef = dbRef(database, `scans/${userId}`);
 
         const handleValue = (snapshot: any) => {
-            const data = snapshot.val();
-            if (!data) {
-                setScans([]);
+            try {
+                const data = snapshot.val();
+                if (!data) {
+                    setScans([]);
+                    setLoading(false);
+                    return;
+                }
+
+                // Flatten nested scan data
+                const scansArray: ScanRecord[] = [];
+                Object.values(data).forEach((scanGroup: any) => {
+                    if (scanGroup && typeof scanGroup === 'object') {
+                        Object.values(scanGroup).forEach((scan: any) => {
+                            if (scan && scan.prediction) {
+                                scansArray.push(scan);
+                            }
+                        });
+                    }
+                });
+
+                // Sort by timestamp descending, fallback 0
+                scansArray.sort((a, b) => {
+                    const timeA = a.timestamp ?? 0;
+                    const timeB = b.timestamp ?? 0;
+                    return timeB - timeA;
+                });
+
+                setScans(scansArray);
                 setLoading(false);
-                return;
+            } catch (err) {
+                setError('Failed to load scans.');
+                setLoading(false);
             }
-            const scansArray = Object.values(data) as ScanRecord[];
-            scansArray.sort((a, b) => {
-                const timeA = typeof a.timestamp === 'object' ? 0 : a.timestamp;
-                const timeB = typeof b.timestamp === 'object' ? 0 : b.timestamp;
-                return timeB - timeA;
-            });
-            setScans(scansArray);
-            setLoading(false);
         };
 
-        onValue(scansRef, handleValue);
+        onValue(scansRef, handleValue, (err) => {
+            setError('Failed to load scans.');
+            setLoading(false);
+        });
+
         return () => off(scansRef, 'value', handleValue);
     }, []);
 
-    const getEcoScoreColor = (score: string) => {
+    const getEcoScoreColor = (score?: string) => {
         const grade = score?.toLowerCase();
-        if (grade === 'a-plus' || grade === 'a' || grade === 'b') return '#4CAF50';
+        if (grade === 'a+' || grade === 'a-plus' || grade === 'a' || grade === 'b') return '#4CAF50';
         if (grade === 'c' || grade === 'd') return '#FF9800';
         if (grade === 'e' || grade === 'f') return '#F44336';
         return '#9E9E9E';
@@ -71,26 +97,47 @@ export default function HistoryScreen() {
 
     const renderItem = ({ item }: { item: ScanRecord }) => (
         <View style={styles.card}>
+            {/* Scanned Product Title */}
+            <Text style={styles.sectionTitle}>Scanned Product</Text>
+
             <View style={styles.row}>
+                {/* Product Image with fallback */}
                 <Image
-                    source={{ uri: item.productImageUrl }}
+                    source={{
+                        uri: item.productImageUrl || 'https://via.placeholder.com/80?text=No+Image',
+                    }}
                     style={styles.productImage}
                     resizeMode="cover"
                 />
                 <View style={styles.info}>
-                    <Text style={styles.category}>{item.prediction.category ?? 'Unknown'}</Text>
-                    <View style={styles.ecoRow}>
+                    {/* Eco-Score with padding above */}
+                    <View style={[styles.ecoRow, { marginTop: 8 }]}>
                         <Text style={styles.label}>Eco-Score:</Text>
-                        <View style={[styles.ecoBadge, { backgroundColor: getEcoScoreColor(item.prediction.ecoScore) }]}>
-                            <Text style={styles.ecoText}>{item.prediction.ecoScore?.toUpperCase() ?? 'N/A'}</Text>
+                        <View
+                            style={[
+                                styles.ecoBadge,
+                                { backgroundColor: getEcoScoreColor(item.prediction?.ecoScore) },
+                            ]}
+                        >
+                            <Text style={styles.ecoText}>
+                                {item.prediction?.ecoScore?.toUpperCase() ?? 'N/A'}
+                            </Text>
                         </View>
                     </View>
-                    {item.prediction.packaging?.length > 0 && (
-                        <Text style={styles.packaging}>Packaging: {item.prediction.packaging.join(', ')}</Text>
-                    )}
+
+                    {/* Packaging */}
+                    {item.prediction?.packaging?.length ? (
+                        <Text style={styles.packaging}>
+                            Packaging:{' '}
+                            {Array.isArray(item.prediction.packaging)
+                                ? item.prediction.packaging.join(', ')
+                                : item.prediction.packaging}
+                        </Text>
+                    ) : null}
                 </View>
             </View>
 
+            {/* Greener Alternative Section */}
             <View style={styles.altContainer}>
                 <Text style={styles.altTitle}>Greener Alternative</Text>
 
@@ -107,15 +154,32 @@ export default function HistoryScreen() {
                                 <Text style={{ color: '#888' }}>No Image</Text>
                             </View>
                         )}
+
                         <View style={styles.altInfo}>
-                            <Text style={styles.altBrand}>Brand: {item.greenerAlternative.brand ?? 'N/A'}</Text>
-                            <View style={styles.ecoRow}>
+                            {/* Removed Brand line here */}
+
+                            {/* Eco-Score with padding above */}
+                            <View style={[styles.ecoRow, { marginTop: 8 }]}>
                                 <Text style={styles.label}>Eco-Score:</Text>
-                                <View style={[styles.ecoBadge, { backgroundColor: getEcoScoreColor(item.greenerAlternative.ecoScore) }]}>
-                                    <Text style={styles.ecoText}>{item.greenerAlternative.ecoScore?.toUpperCase() ?? 'N/A'}</Text>
+                                <View
+                                    style={[
+                                        styles.ecoBadge,
+                                        {
+                                            backgroundColor: getEcoScoreColor(
+                                                item.greenerAlternative.ecoScore
+                                            ),
+                                        },
+                                    ]}
+                                >
+                                    <Text style={styles.ecoText}>
+                                        {item.greenerAlternative.ecoScore?.toUpperCase() ?? 'N/A'}
+                                    </Text>
                                 </View>
                             </View>
-                            <Text style={styles.packaging}>Packaging: {item.greenerAlternative.packaging ?? 'Unknown'}</Text>
+
+                            <Text style={styles.packaging}>
+                                Packaging: {item.greenerAlternative.packaging ?? 'Unknown'}
+                            </Text>
                         </View>
                     </View>
                 ) : (
@@ -124,6 +188,8 @@ export default function HistoryScreen() {
             </View>
         </View>
     );
+
+
 
     if (loading) {
         return (
@@ -134,21 +200,28 @@ export default function HistoryScreen() {
         );
     }
 
+    if (error) {
+        return (
+            <View style={styles.loading}>
+                <Text style={[styles.loadingText, { color: 'red' }]}>{error}</Text>
+            </View>
+        );
+    }
+
     if (scans.length === 0) {
         return (
             <View style={styles.empty}>
                 <Text style={styles.emptyText}>No scans found yet.</Text>
+                <Text style={styles.emptySubtext}>Start scanning products to see your history!</Text>
             </View>
         );
     }
 
     return (
         <FlatList
-            ListHeaderComponent={
-                <Text style={styles.title}>Your Scan History</Text>
-            }
+            ListHeaderComponent={<Text style={styles.title}>Your Scan History</Text>}
             data={scans}
-            keyExtractor={(_, index) => index.toString()}
+            keyExtractor={(item, index) => `${item.scanId ?? index}`}
             renderItem={renderItem}
             contentContainerStyle={styles.container}
             showsVerticalScrollIndicator={false}
@@ -158,94 +231,86 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
     container: {
-        padding: 15,
-        backgroundColor: 'white',
-        paddingBottom: 30,
+        padding: 16,
+        backgroundColor: '#f5f5f5',
     },
     title: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: 'bold',
         color: '#2C5B3F',
-        marginBottom: 20,
         textAlign: 'center',
+        marginBottom: 20,
     },
     card: {
+        backgroundColor: 'white',
         borderRadius: 12,
-        backgroundColor: '#F9FBF8',
-        marginBottom: 22,
-        padding: 18,
-        borderWidth: 1,
-        borderColor: '#D6EADF',
+        padding: 16,
+        marginBottom: 16,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
     row: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
     },
     productImage: {
-        width: 100,
-        height: 100,
-        borderRadius: 12,
-        marginRight: 15,
-        backgroundColor: '#E2EAE3',
+        width: 80,
+        height: 80,
+        borderRadius: 8,
+        marginRight: 12,
+        backgroundColor: '#f0f0f0',
     },
     info: {
         flex: 1,
     },
-    category: {
-        fontWeight: '700',
-        fontSize: 18,
-        marginBottom: 8,
-        color: '#2C5B3F',
-    },
     ecoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 6,
+        marginBottom: 4,
     },
     label: {
         fontSize: 14,
-        color: '#555',
-        fontWeight: '600',
+        color: '#666',
+        marginRight: 8,
     },
     ecoBadge: {
-        marginLeft: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 15,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 12,
+        minWidth: 30,
+        alignItems: 'center',
     },
     ecoText: {
         color: 'white',
+        fontSize: 12,
         fontWeight: 'bold',
-        fontSize: 13,
     },
     packaging: {
-        fontSize: 14,
-        color: '#444',
+        fontSize: 12,
+        color: '#666',
         marginTop: 4,
     },
     altContainer: {
         marginTop: 16,
-        paddingTop: 14,
+        paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: '#C7D8CE',
+        borderTopColor: '#eee',
     },
     altTitle: {
-        fontWeight: '700',
-        fontSize: 16,
-        marginBottom: 10,
-        color: '#2C5B3F',
+        fontSize: 14,
+        fontWeight: 'bold',
+        color: '#4CAF50',
+        marginBottom: 8,
     },
     altImage: {
-        width: 90,
-        height: 90,
-        borderRadius: 10,
-        marginRight: 15,
-        backgroundColor: '#E2EAE3',
+        width: 60,
+        height: 60,
+        borderRadius: 8,
+        marginRight: 12,
+        backgroundColor: '#f0f0f0',
     },
     altImagePlaceholder: {
         justifyContent: 'center',
@@ -255,41 +320,53 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     altBrand: {
+        fontSize: 14,
         fontWeight: '600',
-        fontSize: 15,
-        marginBottom: 6,
-        color: '#3A563A',
+        color: '#333',
+        marginBottom: 4,
     },
     noAlternative: {
-        fontStyle: 'italic',
-        color: '#777',
         fontSize: 14,
-        marginTop: 4,
+        color: '#888',
+        fontStyle: 'italic',
+        textAlign: 'center',
+        paddingVertical: 8,
     },
     loading: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'white',
+        backgroundColor: '#f5f5f5',
     },
     loadingText: {
         marginTop: 12,
-        color: '#2C5B3F',
         fontSize: 16,
-        fontWeight: '600',
+        color: '#666',
     },
     empty: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'white',
-        paddingHorizontal: 20,
+        backgroundColor: '#f5f5f5',
+        padding: 32,
     },
-    
     emptyText: {
-        fontSize: 16,
-        color: '#2C5B3F',
-        fontWeight: '600',
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    emptySubtext: {
+        fontSize: 14,
+        color: '#888',
         textAlign: 'center',
     },
+    sectionTitle: {
+        fontSize: 15,
+        fontWeight: 'bold',
+        color: '#2C5B3F',
+        marginBottom: 8,
+    },
+
 });

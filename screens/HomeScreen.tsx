@@ -362,27 +362,57 @@ const HomeScreen: React.FC = () => {
                         </Text>
 
                         <FlatList
-                            data={packagingItems}
+                            data={packagingItems
+                                .slice() // clone array to avoid mutating state
+                                .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)) // latest first
+                            }
                             keyExtractor={(item, index) => index.toString()}
-                            renderItem={({ item }) => (
-                                <View style={styles.packagingItem}>
-                                    <View style={styles.packagingItemInfo}>
-                                        <Text style={styles.packagingItemName}>
-                                            {item.prediction?.product_name || 'Unknown Product'}
-                                        </Text>
-                                        <Text style={styles.packagingItemDate}>
-                                            {new Date(item.timestamp || Date.now()).toLocaleDateString()}
-                                        </Text>
-                                        <Text style={styles.packagingItemChoice}>
-                                            Choice: {item.preferred === 'alternative' ? 'Green Alternative' : 'Original Product'}
-                                        </Text>
+                            renderItem={({ item }) => {
+                                // Determine image URL safely:
+                                const imageUrl =
+                                    item.productImageUrl || // use productImageUrl if exists
+                                    item.prediction?.image_url || // fallback to prediction.image_url
+                                    item.prediction?.productImageUrl || // sometimes nested differently
+                                    null;
+
+                                // Optional: Log missing or invalid URLs to debug
+                                if (!imageUrl) {
+                                    console.warn('Missing image URL for item:', item);
+                                }
+
+                                return (
+                                    <View style={styles.packagingItem}>
+                                        <View style={styles.packagingItemInfo}>
+                                            {imageUrl ? (
+                                                <Image
+                                                    source={{ uri: imageUrl }}
+                                                    style={styles.packagingItemImage}
+                                                    resizeMode="contain"
+                                                />
+                                            ) : (
+                                                <View style={[styles.packagingItemImage, styles.imagePlaceholder]}>
+                                                    <Text style={{ color: '#888', fontSize: 12 }}>No Image</Text>
+                                                </View>
+                                            )}
+                                            {/* <Text style={styles.packagingItemName}>
+                                                {item.prediction?.product_name || 'Unknown Product'}
+                                            </Text> */}
+                                            <Text style={styles.packagingItemDate}>
+                                                {new Date(item.timestamp || Date.now()).toLocaleDateString()}
+                                            </Text>
+                                            <Text style={styles.packagingItemChoice}>
+                                                Choice: {item.preferred === 'alternative' ? 'Green Alternative' : 'Original Product'}
+                                            </Text>
+                                        </View>
+                                        <View
+                                            style={[
+                                                styles.choiceIndicator,
+                                                { backgroundColor: item.preferred === 'alternative' ? '#4CAF50' : '#FF9800' },
+                                            ]}
+                                        />
                                     </View>
-                                    <View style={[
-                                        styles.choiceIndicator,
-                                        { backgroundColor: item.preferred === 'alternative' ? '#4CAF50' : '#FF9800' }
-                                    ]} />
-                                </View>
-                            )}
+                                );
+                            }}
                             style={styles.packagingItemsList}
                             showsVerticalScrollIndicator={false}
                         />
@@ -398,6 +428,7 @@ const HomeScreen: React.FC = () => {
             </Modal>
         );
     };
+
 
     const renderEcoScoreModal = () => {
         const ecoScoreData = selectedEcoScore ? ECOSCORE_DESCRIPTIONS[selectedEcoScore as keyof typeof ECOSCORE_DESCRIPTIONS] : null;
@@ -1016,6 +1047,17 @@ const styles = StyleSheet.create({
         height: 12,
         borderRadius: 6,
         marginLeft: 8,
+    },
+    packagingItemImage: {
+        width: 80,
+        height: 80,
+        borderRadius: 8,
+        marginRight: 12,
+        backgroundColor: '#f0f0f0', // light background so it’s visible if no image
+    },
+    imagePlaceholder: {
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 
 });
