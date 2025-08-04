@@ -17,6 +17,11 @@ By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** 
 
 <br>
 
+## 📊 Admin Dashboard
+🔗 [**Open the Dashboard**](https://aimemagni-safipack-web-app-mghwfx.streamlit.app)
+
+<br>
+
 ## 🎥 Demo Video
 
 See SafiPackApp in action:
