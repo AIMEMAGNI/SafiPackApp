@@ -1,8 +1,8 @@
 # 🌱 SafiPackApp – Smarter Packaging, Cleaner Future
 
-**SafiPackApp** is a mobile application built to raise awareness around packaging waste and help individuals make smarter, more sustainable choices. Designed with simplicity and purpose, it enables users to scan product packaging, instantly identify the material type (like plastic, cardboard, or glass), and receive an eco-score that reflects environmental friendliness.
+**SafiPackApp** is a mobile application that helps consumers understand the environmental impact of the products they buy. With a simple and intuitive interface, it lets users scan a product, identify key details such as material type and packaging, and receive an eco-score that reflects its overall environmental friendliness.
 
-By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** empowers a cleaner, more informed future—starting right from your home or local store.
+By making sustainability information quick and accessible, SafiPackApp empowers people to make smarter choices, whether shopping in stores or selecting products supporting a cleaner and more sustainable future.
 
 
 ## 📱 Core Features
