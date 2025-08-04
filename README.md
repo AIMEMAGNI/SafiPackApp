@@ -20,7 +20,7 @@ By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** 
 ## 🎥 Demo Video
 
 See SafiPackApp in action:
-👉 [**Watch Demo Video**](https://screenrec.com/share/eBscIJ4nFM)
+👉 [**Watch Demo Video**](https://www.youtube.com/watch?v=hylvC5dESDc)
 
 <br>
 
