@@ -4,7 +4,6 @@
 
 By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** empowers a cleaner, more informed future—starting right from your home or local store.
 
-<br>
 
 ## 📱 Core Features
 
@@ -15,19 +14,16 @@ By making eco-awareness accessible to anyone with a smartphone, **SafiPackApp** 
 * **User Login & Accounts** – Secure sign-up and login using your email to track your sustainability journey.
 * **Cloud-Based Storage** – All scans and images are safely stored for future reference and usage.
 
-<br>
 
 ## 📊 Admin Dashboard
 🔗 [**Open the Dashboard**](https://aimemagni-safipack-web-app-mghwfx.streamlit.app)
 
-<br>
 
 ## 🎥 Demo Video
 
 See SafiPackApp in action:
 👉 [**Watch Demo Video**](https://www.youtube.com/watch?v=hylvC5dESDc)
 
-<br>
 
 ## 🖼️ App Screenshots
 
@@ -41,7 +37,6 @@ Explore how the app looks and feels:
 Try SafiPackApp on your Android phone today:
 ⬇️ [**Download APK**](https://drive.google.com/file/d/1Lyz-VwJy4Jlq7T3R8kkC8bIYCM6q3Kpl/view?usp=drive_link)
 
-<br>
 
 ## 🧩 Built With
 
